@@ -32,28 +32,45 @@ def import_folder(parent_folder: str) -> pd.DataFrame():
     return df
 
 
-def lookup_id(api_key: str, title: str, year: int) -> int():
+def lookup_id(api_key: str, title: str, year: str) -> int():
+    def str_empty(my_string: str):
+        if my_string and my_string.strip():
+            return False
+        else:
+            return True
+
+    retry = False
+
+    if str_empty(title):
+        return -1
+    elif str_empty(title) == False and str_empty(year) == False:
     url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&year={year}&include_adult=true"
-
-    id = 0
-
-    response = requests.get(url).json()
-
-    try:
-        id = response["results"][0]["id"]
-        return id
-    except IndexError:
+        retry = True
+    elif str_empty(title) == False and str_empty(year):
         url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&include_adult=true"
 
     response = requests.get(url).json()
+
     try:
-        id = response["results"][0]["id"]
+        id = int(response["results"][0]["id"])
         return id
     except IndexError:
-        return 0
+        if retry:
+        url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&include_adult=true"
+    response = requests.get(url).json()
+
+    try:
+                id = int(response["results"][0]["id"])
+        return id
+    except IndexError:
+                return -1
+        return -1
 
 
-def lookup_details(api_key: str, m_id: str) -> pd.DataFrame:
+def lookup_details(api_key: str, m_id: int) -> pd.DataFrame:
+
+    if m_id == -1:
+        return pd.DataFrame()
 
     url = f"https://api.themoviedb.org/3/movie/{m_id}?api_key={api_key}&include_adult=true"
     response = requests.get(url).json()
