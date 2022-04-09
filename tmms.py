@@ -135,7 +135,39 @@ def main(api_key: str, parent_folder: str, output_fpath: str):
 
     m_details = df.merge(details_df, left_on="tmdb_id_auto", right_on="id")
 
-    m_details.to_csv(output_fpath, sep=";", encoding="UTF-8", index=False)
+    dict_columns_type = {
+        "disk.fname": str,
+        "disk.year": int,
+        "disk.subtitles": str,
+        "disk.title": str,
+        "tmdb_id_auto": int,
+        "production_countries.iso_3166_1": str,
+        "production_countries.name": str,
+        "adult": str,
+        "backdrop_path": str,
+        "budget": int,
+        "homepage": str,
+        "id": int,
+        "imdb_id": str,
+        "original_language": str,
+        "original_title": str,
+        "overview": str,
+        "popularity": int,
+        "poster_path": str,
+        "release_date": str,
+        "revenue": int,
+        "runtime": int,
+        "status": str,
+        "tagline": str,
+        "title": str,
+        "video": str,
+        "vote_average": float,
+        "vote_count": int,
+    }
+
+    m_details = m_details.astype(dict_columns_type)
+
+    m_details.to_csv(output_fpath, sep=";", encoding="UTF-8", index=False, decimal=",")
     duration = datetime.now() - start
     print(duration)
 
