@@ -11,37 +11,37 @@ def import_folder(parent_folder: str) -> pd.DataFrame():
 
     movies_disk = next(os.walk(parent_folder))[1]
     df = pd.DataFrame(movies_disk)
-    df.columns = ["disk_name"]
+    df.columns = ["disk.fname"]
 
     # year column
 
     year = []
-    for values in df["disk_name"]:
+    for values in df["disk.fname"]:
         year.append(re.search(r"\d{4}", values).group())
 
-    df["year"] = year
+    df["disk.year"] = year
 
     # subtitles
 
     subtitles = []
-    for values in df["disk_name"]:
+    for values in df["disk.fname"]:
         subtitles.append(re.search(r"\(([A-Za-z]*)\)", values).group(1))
 
-    df["subtitles"] = subtitles
+    df["disk.subtitles"] = subtitles
 
     # title
 
     titles = []
 
     for i in range(0, len(df)):
-        ori_length = len(df.iloc[i].disk_name)
-        sub_length = len(df.iloc[i].subtitles)
+        ori_length = len(df.iloc[i]["disk.fname"])
+        sub_length = len(df.iloc[i]["disk.subtitles"])
         fix_length = len(" (1234) ()")
         new_length = ori_length - sub_length - fix_length
 
-        titles.append(df.iloc[i].disk_name[:new_length])
+        titles.append(df.iloc[i]["disk.fname"][:new_length])
 
-    df["disk_title"] = titles
+    df["disk.title"] = titles
 
     return df
 
@@ -123,7 +123,7 @@ def main(api_key: str, parent_folder: str):
     tmdb_id_auto = []
 
     df["tmdb_id_auto"] = df.apply(
-        lambda row: lookup_id(api_key, row["disk_title"], row["year"]), axis=1
+        lambda row: lookup_id(api_key, row["disk.title"], row["disk.year"]), axis=1
     )
 
     details_df = pd.DataFrame()
@@ -135,7 +135,7 @@ def main(api_key: str, parent_folder: str):
 
     m_details = df.merge(details_df, left_on="tmdb_id_auto", right_on="id")
 
-    m_details.to_csv("fulltable.csv", sep=";", encoding="UTF-8", index=False)
+    m_details.to_csv("tmdb_movie_metadata.csv", sep=";", encoding="UTF-8", index=False)
     duration = datetime.now() - start
     print(duration)
 
