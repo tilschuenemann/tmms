@@ -3,7 +3,7 @@
 This program creates a CSV with movie metadata from the TMDB for every folder inside the parent folder.
 Supported naming convention:
 ```
-movie title (release year) (subtitle shorthand)
+The Matrix (1999) (no subs)
 ```
 
 ## Documentation
