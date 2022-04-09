@@ -9,39 +9,25 @@ from datetime import datetime
 
 def import_folder(parent_folder: str) -> pd.DataFrame():
 
+    if os.path.exists(parent_folder) == False:
+        exit("exiting")
+
     movies_disk = next(os.walk(parent_folder))[1]
     df = pd.DataFrame(movies_disk)
     df.columns = ["disk.fname"]
 
-    # year column
+    if df.empty:
+        exit("no subfolders found! exiting")
 
-    year = []
-    for values in df["disk.fname"]:
-        year.append(re.search(r"\d{4}", values).group())
-
-    df["disk.year"] = year
-
-    # subtitles
-
-    subtitles = []
-    for values in df["disk.fname"]:
-        subtitles.append(re.search(r"\(([A-Za-z]*)\)", values).group(1))
-
-    df["disk.subtitles"] = subtitles
-
-    # title
-
-    titles = []
-
-    for i in range(0, len(df)):
-        ori_length = len(df.iloc[i]["disk.fname"])
-        sub_length = len(df.iloc[i]["disk.subtitles"])
-        fix_length = len(" (1234) ()")
-        new_length = ori_length - sub_length - fix_length
-
-        titles.append(df.iloc[i]["disk.fname"][:new_length])
-
-    df["disk.title"] = titles
+    df["disk.year"] = df["disk.fname"].str.extract(
+        r"\((\d{4})\) \(\w*\)$", expand=False
+    )
+    df["disk.subtitles"] = df["disk.fname"].str.extract(
+        r"\(\d{4}\) \((\w+)\)$", expand=False
+    )
+    df["disk.title"] = df["disk.fname"].str.extract(
+        r"(.*) \(.*\) \(.*\)$", expand=False
+    )
 
     return df
 
