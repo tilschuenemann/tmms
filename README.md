@@ -12,7 +12,7 @@ import tmms
 api_key = "MY_API_KEY"
 parent_folder = "/home/til/my_movie_library"
 
-main.main(api_key, parent_folder)
+tmms.main(api_key, parent_folder)
 ```
 
 For every subfolder the TMDB API is queried. Incase of multiple results for querying with title and year, the most popular one is kept. If there no results, another query only including the year is sent.
