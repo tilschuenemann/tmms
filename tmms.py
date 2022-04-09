@@ -114,7 +114,7 @@ def lookup_details(api_key: str, m_id: str) -> pd.DataFrame:
     return df
 
 
-def main(api_key: str, parent_folder: str):
+def main(api_key: str, parent_folder: str, output_fpath: str):
 
     start = datetime.now()
 
@@ -135,7 +135,7 @@ def main(api_key: str, parent_folder: str):
 
     m_details = df.merge(details_df, left_on="tmdb_id_auto", right_on="id")
 
-    m_details.to_csv("tmdb_movie_metadata.csv", sep=";", encoding="UTF-8", index=False)
+    m_details.to_csv(output_fpath, sep=";", encoding="UTF-8", index=False)
     duration = datetime.now() - start
     print(duration)
 

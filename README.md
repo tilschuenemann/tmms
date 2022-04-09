@@ -12,7 +12,7 @@ import tmms
 api_key = "MY_API_KEY"
 parent_folder = "/home/til/my_movie_library"
 
-tmms.main(api_key, parent_folder)
+tmms.main(api_key, parent_folder,"./metadata-table.csv")
 ```
 
 For every subfolder the TMDB API is queried. Incase of multiple results for querying with title and year, the most popular one is kept. If there no results, another query only including the year is sent.
@@ -20,8 +20,6 @@ For every subfolder the TMDB API is queried. Incase of multiple results for quer
 The resulting dataframe is flattened; eg. one movie with two genres will feature two rows with different genres. 
 
 ## Todo
-* output arg
 * check for naming convention of folders
 * cast datatypes before returning dfs
-* prefix original
 * custom id column for manual ids
