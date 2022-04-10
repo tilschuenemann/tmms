@@ -9,6 +9,13 @@ import os
 from progress.bar import Bar
 
 
+def str_empty(my_string: str):
+    if my_string and my_string.strip():
+        return False
+    else:
+        return True
+
+
 def import_folder(parent_folder: str) -> pd.DataFrame():
     """Reads the parent_folders subdirectory names,
     extracts title, year and subtitles (if available).
@@ -75,19 +82,13 @@ def lookup_id(api_key: str, title: str, year: str) -> int():
         TMDB id for first search result
     """
 
-    def str_empty(my_string: str):
-        if my_string and my_string.strip():
-            return False
-        else:
-            return True
-
     ERROR_ID = -1
     retry = False
 
     if str_empty(title):
         return ERROR_ID
     elif str_empty(title) == False and str_empty(year) == False:
-    url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&year={year}&include_adult=true"
+        url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&year={year}&include_adult=true"
         retry = True
     elif str_empty(title) == False and str_empty(year):
         url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&include_adult=true"
@@ -99,13 +100,13 @@ def lookup_id(api_key: str, title: str, year: str) -> int():
         return id
     except IndexError:
         if retry:
-        url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&include_adult=true"
-    response = requests.get(url).json()
+            url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&include_adult=true"
+            response = requests.get(url).json()
 
-    try:
+            try:
                 id = int(response["results"][0]["id"])
-        return id
-    except IndexError:
+                return id
+            except IndexError:
                 return ERROR_ID
         return ERROR_ID
 
@@ -178,15 +179,17 @@ def main(api_key: str, parent_folder: str, output_fpath: str):
 
     start = datetime.now()
 
-    if api_key.strip() == "":
+    if str_empty(api_key):
         exit("no api key supplied")
 
     df = import_folder(parent_folder)
 
+    # API calls for id
+
     bar = Bar(
         "Ids    ",
         max=len(df.index),
-        suffix="%(index)d / %(max)d  %(percent)d%% (ETA %(eta)ds)",
+        suffix="%(index)d / %(max)d  %(percent)d%% (ETA %(eta)ds | %(elapsed_td)s)",
     )
 
     tmdb_id_auto = []
@@ -196,10 +199,12 @@ def main(api_key: str, parent_folder: str, output_fpath: str):
     df["tmdb_id_auto"] = tmdb_id_auto
     bar.finish()
 
+    # API calls for details
+
     bar = Bar(
         "Details",
         max=len(df.index),
-        suffix="%(index)d / %(max)d  %(percent)d%% (ETA %(eta)ds)",
+        suffix="%(index)d / %(max)d  %(percent)d%% (ETA %(eta)ds | %(elapsed_td)s)",
     )
 
     details_df = pd.DataFrame()
@@ -209,6 +214,8 @@ def main(api_key: str, parent_folder: str, output_fpath: str):
         bar.next()
     details_df = details_df.reset_index(drop=True)
     bar.finish()
+
+    # merging and casting columns
 
     m_details = df.merge(details_df, left_on="tmdb_id_auto", right_on="id")
 
@@ -245,6 +252,7 @@ def main(api_key: str, parent_folder: str, output_fpath: str):
     m_details = m_details.astype(dict_columns_type)
 
     m_details.to_csv(output_fpath, sep=";", encoding="UTF-8", index=False, decimal=",")
+
     duration = datetime.now() - start
     print(f"finished in {duration}")
 
