@@ -81,10 +81,11 @@ def lookup_id(api_key: str, title: str, year: str) -> int():
         else:
             return True
 
+    ERROR_ID = -1
     retry = False
 
     if str_empty(title):
-        return -1
+        return ERROR_ID
     elif str_empty(title) == False and str_empty(year) == False:
     url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&year={year}&include_adult=true"
         retry = True
@@ -105,8 +106,8 @@ def lookup_id(api_key: str, title: str, year: str) -> int():
                 id = int(response["results"][0]["id"])
         return id
     except IndexError:
-                return -1
-        return -1
+                return ERROR_ID
+        return ERROR_ID
 
 
 def lookup_details(api_key: str, m_id: int) -> pd.DataFrame:
