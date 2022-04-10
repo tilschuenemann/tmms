@@ -18,7 +18,7 @@ def str_empty(my_string: str):
         return True
 
 
-def import_folder(parent_folder: str) -> pd.DataFrame():
+def import_folder(parent_folder: str, style: int) -> pd.DataFrame():
     """Reads the parent_folders subdirectory names,
     extracts title, year and subtitles (if available).
     If a non-existant parent_folder is supplied or if it's
@@ -45,16 +45,23 @@ def import_folder(parent_folder: str) -> pd.DataFrame():
     if df.empty:
         return pd.DataFrame()
 
-    df["disk.year"] = df["disk.fname"].str.extract(
-        r"\((\d{4})\) \(\w*\)$", expand=False
-    )
-    df["disk.subtitles"] = df["disk.fname"].str.extract(
-        r"\(\d{4}\) \((\w+)\)$", expand=False
-    )
-    df["disk.title"] = df["disk.fname"].str.extract(
-        r"(.*) \(.*\) \(.*\)$", expand=False
-    )
-
+    if style == 0:
+        df["disk.year"] = df["disk.fname"].str.extract(
+            r"\((\d{4})\) \(\w*\)$", expand=False
+        )
+        df["disk.subtitles"] = df["disk.fname"].str.extract(
+            r"\(\d{4}\) \((\w+)\)$", expand=False
+        )
+        df["disk.title"] = df["disk.fname"].str.extract(
+            r"(.*) \(.*\) \(.*\)$", expand=False
+        )
+    elif style == 1:
+        df["disk.year"] = df["disk.fname"].str.extract(
+            r"(^\d{4})(?= - .+)", expand=False
+        )
+        df["disk.title"] = df["disk.fname"].str.extract(r"^\d{4} - (.+)", expand=False)
+    else:
+        return pd.DataFrame()
     return df
 
 
@@ -177,14 +184,14 @@ def lookup_details(api_key: str, m_id: int) -> pd.DataFrame:
     return df
 
 
-def main(api_key: str, parent_folder: str, output_fpath: str):
+def main(api_key: str, parent_folder: str, style: int, output_fpath: str):
 
     start = datetime.now()
 
     if str_empty(api_key):
         exit("no api key supplied")
 
-    df = import_folder(parent_folder)
+    df = import_folder(parent_folder, style)
 
     # API calls for id
 
@@ -275,6 +282,11 @@ if __name__ == "__main__":
         required=True,
         help="folder containing movies",
     )
+
+    parser.add_argument(
+        "--style", dest="style", type=int, required=True, help="parsing style"
+    )
+
     parser.add_argument(
         "--output_fpath",
         dest="output_fpath",
@@ -286,4 +298,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(args.api_key, args.parent_folder, args.output_fpath)
+    main(args.api_key, args.parent_folder, args.style, args.output_fpath)

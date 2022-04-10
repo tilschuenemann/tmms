@@ -12,13 +12,14 @@ The Matrix (1999) (subs)
 import tmms
 api_key = "MY_API_KEY"
 parent_folder = "/home/til/my_movie_library"
+style = 0
 
-tmms.main(api_key, parent_folder,"./metadata-table.csv")
+tmms.main(api_key, parent_folder, style, "./metadata-table.csv")
 ```
 
 Alternatively the script can be called from the command line
 ```bash
-python tmms.py --api_key="MY_API_KEY" --parent_folder = "/home/til/my_movie_library" --output_fpath=".\metadata-table.csv"
+python tmms.py --api_key="MY_API_KEY" --parent_folder = "/home/til/my_movie_library" --style=0 --output_fpath=".\metadata-table.csv"
 ```
 
 For every subfolder the TMDB API is queried. Incase of multiple results for querying with title and year, the most popular one is kept. If there no results, another query only including the title is sent.
@@ -26,4 +27,5 @@ For every subfolder the TMDB API is queried. Incase of multiple results for quer
 The resulting dataframe is flattened; eg. one movie with two genres will feature two rows with different genres. 
 
 ## Todo
-* custom id column for manual ids
+* custom id column for manual ids / separate lookup table
+* naming convention: 1999 - The Matrix
