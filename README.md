@@ -1,9 +1,10 @@
 # TMDB Movie Metadata Scraper
 
 This program creates a CSV with movie metadata from the TMDB for every folder inside the parent folder.
-Supported naming convention:
+
+The supported naming convention is "movie title (4-digit year) (word)"
 ```
-The Matrix (1999) (no subs)
+The Matrix (1999) (subs)
 ```
 
 ## Documentation
