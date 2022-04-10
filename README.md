@@ -7,7 +7,7 @@ The supported naming convention is "movie title (4-digit year) (word)"
 The Matrix (1999) (subs)
 ```
 
-## Documentation
+## Usage
 ```python
 import tmms
 api_key = "MY_API_KEY"
@@ -16,7 +16,12 @@ parent_folder = "/home/til/my_movie_library"
 tmms.main(api_key, parent_folder,"./metadata-table.csv")
 ```
 
-For every subfolder the TMDB API is queried. Incase of multiple results for querying with title and year, the most popular one is kept. If there no results, another query only including the year is sent.
+Alternatively the script can be called from the command line
+```bash
+python tmms.py --api_key="MY_API_KEY" --parent_folder = "/home/til/my_movie_library" --output_fpath=".\metadata-table.csv"
+```
+
+For every subfolder the TMDB API is queried. Incase of multiple results for querying with title and year, the most popular one is kept. If there no results, another query only including the title is sent.
 
 The resulting dataframe is flattened; eg. one movie with two genres will feature two rows with different genres. 
 

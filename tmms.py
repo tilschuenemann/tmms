@@ -1,6 +1,8 @@
 import pandas as pd
 from pandas import json_normalize
 
+
+import argparse
 from datetime import datetime
 import json
 import re
@@ -251,6 +253,9 @@ def main(api_key: str, parent_folder: str, output_fpath: str):
 
     m_details = m_details.astype(dict_columns_type)
 
+    if output_fpath == None:
+        output_fpath = os.getcwd() + "/tmms_table.csv"
+
     m_details.to_csv(output_fpath, sep=";", encoding="UTF-8", index=False, decimal=",")
 
     duration = datetime.now() - start
@@ -258,4 +263,27 @@ def main(api_key: str, parent_folder: str, output_fpath: str):
 
 
 if __name__ == "__main__":
-    main()
+
+    parser = argparse.ArgumentParser(description="Process some integers.")
+    parser.add_argument(
+        "--api_key", dest="api_key", type=str, required=True, help="TMDB api key"
+    )
+    parser.add_argument(
+        "--parent_folder",
+        dest="parent_folder",
+        type=str,
+        required=True,
+        help="folder containing movies",
+    )
+    parser.add_argument(
+        "--output_fpath",
+        dest="output_fpath",
+        type=str,
+        required=False,
+        help="results get written to this file. If nothing is specified,"
+        + "tmms_table.csv gets written to the current working directry.",
+    )
+
+    args = parser.parse_args()
+
+    main(args.api_key, args.parent_folder, args.output_fpath)
