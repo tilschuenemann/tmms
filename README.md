@@ -20,6 +20,4 @@ For every subfolder the TMDB API is queried. Incase of multiple results for quer
 The resulting dataframe is flattened; eg. one movie with two genres will feature two rows with different genres. 
 
 ## Todo
-* check for naming convention of folders
-* cast datatypes before returning dfs
 * custom id column for manual ids

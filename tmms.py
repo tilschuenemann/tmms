@@ -1,10 +1,12 @@
-import requests
 import pandas as pd
-import os
-import re
-import json
 from pandas import json_normalize
+
 from datetime import datetime
+import json
+import re
+import requests
+import os
+from progress.bar import Bar
 
 
 def import_folder(parent_folder: str) -> pd.DataFrame():
@@ -175,20 +177,37 @@ def main(api_key: str, parent_folder: str, output_fpath: str):
 
     start = datetime.now()
 
+    if api_key.strip() == "":
+        exit("no api key supplied")
+
     df = import_folder(parent_folder)
 
-    tmdb_id_auto = []
+    bar = Bar(
+        "Ids    ",
+        max=len(df.index),
+        suffix="%(index)d / %(max)d  %(percent)d%% (ETA %(eta)ds)",
+    )
 
-    df["tmdb_id_auto"] = df.apply(
-        lambda row: lookup_id(api_key, row["disk.title"], row["disk.year"]), axis=1
+    tmdb_id_auto = []
+    for index, row in df.iterrows():
+        tmdb_id_auto.append(lookup_id(api_key, row["disk.title"], row["disk.year"]))
+        bar.next()
+    df["tmdb_id_auto"] = tmdb_id_auto
+    bar.finish()
+
+    bar = Bar(
+        "Details",
+        max=len(df.index),
+        suffix="%(index)d / %(max)d  %(percent)d%% (ETA %(eta)ds)",
     )
 
     details_df = pd.DataFrame()
     for index, row in df.iterrows():
         m_details = lookup_details(api_key, row["tmdb_id_auto"])
         details_df = pd.concat([details_df, m_details], axis=0)
-
+        bar.next()
     details_df = details_df.reset_index(drop=True)
+    bar.finish()
 
     m_details = df.merge(details_df, left_on="tmdb_id_auto", right_on="id")
 
@@ -226,7 +245,7 @@ def main(api_key: str, parent_folder: str, output_fpath: str):
 
     m_details.to_csv(output_fpath, sep=";", encoding="UTF-8", index=False, decimal=",")
     duration = datetime.now() - start
-    print(duration)
+    print(f"finished in {duration}")
 
 
 if __name__ == "__main__":
