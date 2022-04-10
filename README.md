@@ -1,4 +1,4 @@
-# TMDB Movie Metadata Scraper
+# :movie_camera: TMDB Movie Metadata Scraper
 
 This program creates a CSV with movie metadata from the TMDB for every folder inside the parent folder.
 
