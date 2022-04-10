@@ -8,16 +8,31 @@ from datetime import datetime
 
 
 def import_folder(parent_folder: str) -> pd.DataFrame():
+    """Reads the parent_folders subdirectory names,
+    extracts title, year and subtitles (if available).
+    If a non-existant parent_folder is supplied or if it's
+    empty, an empty dataframe will be returned.
+
+    Parameters
+    --------
+    parent_folder : str
+        filepath to folder containing all movies
+
+    Returns
+    --------
+    pd.DataFrame
+
+    """
 
     if os.path.exists(parent_folder) == False:
-        exit("exiting")
+        return pd.DataFrame()
 
     movies_disk = next(os.walk(parent_folder))[1]
     df = pd.DataFrame(movies_disk)
     df.columns = ["disk.fname"]
 
     if df.empty:
-        exit("no subfolders found! exiting")
+        return pd.DataFrame()
 
     df["disk.year"] = df["disk.fname"].str.extract(
         r"\((\d{4})\) \(\w*\)$", expand=False
@@ -33,6 +48,31 @@ def import_folder(parent_folder: str) -> pd.DataFrame():
 
 
 def lookup_id(api_key: str, title: str, year: str) -> int():
+    """Creates a search get request for TMDB API.
+    Searches for combination of title and year first -
+    if response is empty another search only using the title
+    is performed.
+
+    Incase of multiple results the first one is taken.
+
+    If the supplied title is an empty string or no final
+    results can be returned, -1 is returned.
+
+    Parameters
+    --------
+    api_key : str
+        TMDB API key
+    title : str
+        movie title
+    year : str
+        movie release year
+
+    Returns
+    --------
+    int
+        TMDB id for first search result
+    """
+
     def str_empty(my_string: str):
         if my_string and my_string.strip():
             return False
@@ -68,7 +108,21 @@ def lookup_id(api_key: str, title: str, year: str) -> int():
 
 
 def lookup_details(api_key: str, m_id: int) -> pd.DataFrame:
+    """Queries the TMDB API for movie details for m_id. The
+    resulting JSON is flattened and fed into a DataFrame.
 
+    Parameters
+    --------
+    api_key : str
+        TMDB API key
+    m_id : int
+        TMDB movie id
+
+    Returns
+    --------
+    pd.DataFrame
+        DataFrame containing m_id metadata
+    """
     if m_id == -1:
         return pd.DataFrame()
 
