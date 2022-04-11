@@ -28,4 +28,3 @@ The resulting dataframe is flattened; eg. one movie with two genres will feature
 
 ## Todo
 * custom id column for manual ids / separate lookup table
-* naming convention: 1999 - The Matrix

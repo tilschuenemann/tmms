@@ -100,7 +100,7 @@ def lookup_id(api_key: str, title: str, year: str) -> int():
         url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&year={year}&include_adult=true"
         retry = True
     elif str_empty(title) == False and str_empty(year):
-        url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&include_adult=true"
+        url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&include_adult=true&page=1"
 
     response = requests.get(url).json()
 
@@ -109,7 +109,7 @@ def lookup_id(api_key: str, title: str, year: str) -> int():
         return id
     except IndexError:
         if retry:
-            url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&include_adult=true"
+            url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&include_adult=true&page=1"
             response = requests.get(url).json()
 
             try:
@@ -180,11 +180,59 @@ def lookup_details(api_key: str, m_id: int) -> pd.DataFrame:
             record_prefix=col + ".",
             errors="ignore",
         )
+    df = df.add_prefix("m.")
 
     return df
 
 
-def main(api_key: str, parent_folder: str, style: int, output_fpath: str):
+def lookup_credits(api_key: str, m_id: int) -> pd.DataFrame():
+    """Queries the TMDB API for movie cast and crew for m_id. The
+    resulting JSON is flattened and fed into a DataFrame.
+
+    Parameters
+    --------
+    api_key : str
+        TMDB API key
+    m_id : int
+        TMDB movie id
+
+    Returns
+    --------
+    pd.DataFrame
+        DataFrame containing m_id cast and crew
+    """
+    if m_id == -1:
+        return pd.DataFrame()
+
+    url = f"https://api.themoviedb.org/3/movie/{m_id}/credits?api_key={api_key}"
+    response = requests.get(url).json()
+
+    response["m_id"] = response.pop("id")
+
+    cast = pd.json_normalize(
+        response,
+        record_path="cast",
+        meta="m_id",
+        errors="ignore",
+    )
+
+    crew = pd.json_normalize(
+        response,
+        record_path="crew",
+        meta="m_id",
+        errors="ignore",
+    )
+
+    cast["credit.type"] = "cast"
+    crew["credit.type"] = "crew"
+    cast_crew = pd.concat([cast, crew], axis=0)
+    cast_crew = cast_crew.add_prefix("cc.")
+    cast_crew.fillna(0, inplace=True)
+
+    return cast_crew
+
+
+def main(api_key: str, parent_folder: str, style: int, output_fpath: str = None):
 
     start = datetime.now()
 
@@ -209,24 +257,37 @@ def main(api_key: str, parent_folder: str, style: int, output_fpath: str):
     bar.finish()
 
     # API calls for details
-
     bar = Bar(
         "Details",
         max=len(df.index),
         suffix="%(index)d / %(max)d  %(percent)d%% (ETA %(eta)ds | %(elapsed_td)s)",
     )
 
-    details_df = pd.DataFrame()
+    details = pd.DataFrame()
     for index, row in df.iterrows():
-        m_details = lookup_details(api_key, row["tmdb_id_auto"])
-        details_df = pd.concat([details_df, m_details], axis=0)
+        details_tmp = lookup_details(api_key, row["tmdb_id_auto"])
+        details = pd.concat([details, details_tmp], axis=0)
         bar.next()
-    details_df = details_df.reset_index(drop=True)
+    details = details.reset_index(drop=True)
+    bar.finish()
+
+    # API calls for credits
+    bar = Bar(
+        "Credits",
+        max=len(df.index),
+        suffix="%(index)d / %(max)d  %(percent)d%% (ETA %(eta)ds | %(elapsed_td)s)",
+    )
+    cc = pd.DataFrame()
+    for index, row in df.iterrows():
+        cc_tmp = lookup_credits(api_key, row["tmdb_id_auto"])
+        cc = pd.concat([cc, cc_tmp], axis=0)
+        bar.next()
+    cc = cc.reset_index(drop=True)
     bar.finish()
 
     # merging and casting columns
-
-    m_details = df.merge(details_df, left_on="tmdb_id_auto", right_on="id")
+    result_df = df.merge(details, left_on="tmdb_id_auto", right_on="m.id")
+    result_df = result_df.merge(cc, left_on="tmdb_id_auto", right_on="cc.m_id")
 
     dict_columns_type = {
         "disk.fname": str,
@@ -234,39 +295,39 @@ def main(api_key: str, parent_folder: str, style: int, output_fpath: str):
         "disk.subtitles": str,
         "disk.title": str,
         "tmdb_id_auto": int,
-        "production_countries.iso_3166_1": str,
-        "production_countries.name": str,
-        "adult": str,
-        "backdrop_path": str,
-        "budget": int,
-        "homepage": str,
-        "id": int,
-        "imdb_id": str,
-        "original_language": str,
-        "original_title": str,
-        "overview": str,
-        "popularity": int,
-        "poster_path": str,
-        "release_date": str,
-        "revenue": int,
-        "runtime": int,
-        "status": str,
-        "tagline": str,
-        "title": str,
-        "video": str,
-        "vote_average": float,
-        "vote_count": int,
+        "m.production_countries.iso_3166_1": str,
+        "m.production_countries.name": str,
+        "m.adult": str,
+        "m.backdrop_path": str,
+        "m.budget": int,
+        "m.homepage": str,
+        "m.id": int,
+        "m.imdb_id": str,
+        "m.original_language": str,
+        "m.original_title": str,
+        "m.overview": str,
+        "m.popularity": int,
+        "m.poster_path": str,
+        "m.release_date": str,
+        "m.revenue": int,
+        "m.runtime": int,
+        "m.status": str,
+        "m.tagline": str,
+        "m.title": str,
+        "m.video": str,
+        "m.vote_average": float,
+        "m.vote_count": int,
     }
 
-    m_details = m_details.astype(dict_columns_type)
+    result_df = result_df.astype(dict_columns_type)
 
     if output_fpath == None:
         output_fpath = os.getcwd() + "/tmms_table.csv"
 
-    m_details.to_csv(output_fpath, sep=";", encoding="UTF-8", index=False, decimal=",")
+    result_df.to_csv(output_fpath, sep=";", encoding="UTF-8", index=False, decimal=",")
 
     duration = datetime.now() - start
-    print(f"finished in {duration}")
+    print(f"finished in {duration}, saved results to {output_fpath}")
 
 
 if __name__ == "__main__":
