@@ -182,6 +182,33 @@ def lookup_details(api_key: str, m_id: int) -> pd.DataFrame:
         )
     df = df.add_prefix("m.")
 
+    col_types = {
+        "m.production_countries.iso_3166_1": str,
+        "m.production_countries.name": str,
+        "m.adult": str,
+        "m.backdrop_path": str,
+        "m.budget": int,
+        "m.homepage": str,
+        "m.id": int,
+        "m.imdb_id": str,
+        "m.original_language": str,
+        "m.original_title": str,
+        "m.overview": str,
+        "m.popularity": int,
+        "m.poster_path": str,
+        "m.release_date": str,
+        "m.revenue": int,
+        "m.runtime": int,
+        "m.status": str,
+        "m.tagline": str,
+        "m.title": str,
+        "m.video": str,
+        "m.vote_average": float,
+        "m.vote_count": int,
+    }
+
+    df = df.astype(col_types)
+
     return df
 
 
@@ -229,10 +256,36 @@ def lookup_credits(api_key: str, m_id: int) -> pd.DataFrame():
     cast_crew = cast_crew.add_prefix("cc.")
     cast_crew.fillna(0, inplace=True)
 
+    col_types = {
+        "cc.adult": bool,
+        "cc.gender": int,
+        "cc.id": int,
+        "cc.known_for_department": str,
+        "cc.name": str,
+        "cc.original_name": str,
+        "cc.popularity": float,
+        "cc.profile_path": str,
+        "cc.cast_id": int,
+        "cc.character": str,
+        "cc.credit_id": str,
+        "cc.order": int,
+        "cc.m_id": int,
+        "cc.credit.type": str,
+        "cc.department": str,
+        "cc.job": str,
+    }
+
     return cast_crew
 
 
-def main(api_key: str, parent_folder: str, style: int, output_fpath: str = None):
+def main(
+    api_key: str,
+    parent_folder: str,
+    style: int,
+    m: bool,
+    c: bool,
+    output_fpath: str = None,
+):
 
     start = datetime.now()
 
@@ -242,7 +295,6 @@ def main(api_key: str, parent_folder: str, style: int, output_fpath: str = None)
     df = import_folder(parent_folder, style)
 
     # API calls for id
-
     bar = Bar(
         "Ids    ",
         max=len(df.index),
@@ -256,75 +308,51 @@ def main(api_key: str, parent_folder: str, style: int, output_fpath: str = None)
     df["tmdb_id_auto"] = tmdb_id_auto
     bar.finish()
 
-    # API calls for details
-    bar = Bar(
-        "Details",
-        max=len(df.index),
-        suffix="%(index)d / %(max)d  %(percent)d%% (ETA %(eta)ds | %(elapsed_td)s)",
-    )
+    if m is True:
+        # API calls for details
+        bar = Bar(
+            "Details",
+            max=len(df.index),
+            suffix="%(index)d / %(max)d  %(percent)d%% (ETA %(eta)ds | %(elapsed_td)s)",
+        )
 
-    details = pd.DataFrame()
-    for index, row in df.iterrows():
-        details_tmp = lookup_details(api_key, row["tmdb_id_auto"])
-        details = pd.concat([details, details_tmp], axis=0)
-        bar.next()
-    details = details.reset_index(drop=True)
-    bar.finish()
+        details = pd.DataFrame()
+        for index, row in df.iterrows():
+            details_tmp = lookup_details(api_key, row["tmdb_id_auto"])
+            details = pd.concat([details, details_tmp], axis=0)
+            bar.next()
+        details = details.reset_index(drop=True)
 
-    # API calls for credits
-    bar = Bar(
-        "Credits",
-        max=len(df.index),
-        suffix="%(index)d / %(max)d  %(percent)d%% (ETA %(eta)ds | %(elapsed_td)s)",
-    )
-    cc = pd.DataFrame()
-    for index, row in df.iterrows():
-        cc_tmp = lookup_credits(api_key, row["tmdb_id_auto"])
-        cc = pd.concat([cc, cc_tmp], axis=0)
-        bar.next()
-    cc = cc.reset_index(drop=True)
-    bar.finish()
+        bar.finish()
 
-    # merging and casting columns
-    result_df = df.merge(details, left_on="tmdb_id_auto", right_on="m.id")
-    result_df = result_df.merge(cc, left_on="tmdb_id_auto", right_on="cc.m_id")
+    if c is True:
+        # API calls for credits
+        bar = Bar(
+            "Credits",
+            max=len(df.index),
+            suffix="%(index)d / %(max)d  %(percent)d%% (ETA %(eta)ds | %(elapsed_td)s)",
+        )
 
-    dict_columns_type = {
-        "disk.fname": str,
-        "disk.year": int,
-        "disk.subtitles": str,
-        "disk.title": str,
-        "tmdb_id_auto": int,
-        "m.production_countries.iso_3166_1": str,
-        "m.production_countries.name": str,
-        "m.adult": str,
-        "m.backdrop_path": str,
-        "m.budget": int,
-        "m.homepage": str,
-        "m.id": int,
-        "m.imdb_id": str,
-        "m.original_language": str,
-        "m.original_title": str,
-        "m.overview": str,
-        "m.popularity": int,
-        "m.poster_path": str,
-        "m.release_date": str,
-        "m.revenue": int,
-        "m.runtime": int,
-        "m.status": str,
-        "m.tagline": str,
-        "m.title": str,
-        "m.video": str,
-        "m.vote_average": float,
-        "m.vote_count": int,
-    }
+        cc = pd.DataFrame()
+        for index, row in df.iterrows():
+            cc_tmp = lookup_credits(api_key, row["tmdb_id_auto"])
+            cc = pd.concat([cc, cc_tmp], axis=0)
+            bar.next()
+        cc = cc.reset_index(drop=True)
 
-    result_df = result_df.astype(dict_columns_type)
+        bar.finish()
+
+    if m is not False:
+        df = df.merge(details, left_on="tmdb_id_auto", right_on="m.id")
+        df.drop("m.id", axis=1, inplace=True)
+    if c is not False:
+        df = df.merge(cc, left_on="tmdb_id_auto", right_on="cc.m_id")
+        df.drop("cc.m_id", axis=1, inplace=True)
 
     if output_fpath == None:
         output_fpath = os.getcwd() + "/tmms_table.csv"
 
-    result_df.to_csv(output_fpath, sep=";", encoding="UTF-8", index=False, decimal=",")
+    df.to_csv(output_fpath, sep=";", encoding="UTF-8", index=False, decimal=",")
 
     duration = datetime.now() - start
     print(f"finished in {duration}, saved results to {output_fpath}")
@@ -332,7 +360,7 @@ def main(api_key: str, parent_folder: str, style: int, output_fpath: str = None)
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description="Process some integers.")
+    parser = argparse.ArgumentParser(description="Scrape TMDB metadata")
     parser.add_argument(
         "--api_key", dest="api_key", type=str, required=True, help="TMDB api key"
     )
@@ -357,6 +385,15 @@ if __name__ == "__main__":
         + "tmms_table.csv gets written to the current working directry.",
     )
 
+    parser.add_argument(
+        "--m", action="store_false", help="set flag for skipping movie detail data"
+    )
+    parser.add_argument(
+        "--c", action="store_false", help="set flag for skipping credit data"
+    )
+
     args = parser.parse_args()
 
-    main(args.api_key, args.parent_folder, args.style, args.output_fpath)
+    main(
+        args.api_key, args.parent_folder, args.style, args.output_fpath, args.m, args.c
+    )
