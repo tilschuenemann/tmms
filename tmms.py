@@ -71,6 +71,7 @@ def import_folder(parent_folder: str, style: int) -> pd.DataFrame():
 
 def lookup_id(api_key: str, title: str, year: str) -> int():
     """Creates a search get request for TMDB API.
+
     Searches for combination of title and year first -
     if response is empty another search only using the title
     is performed.
@@ -281,14 +282,32 @@ def lookup_credits(api_key: str, m_id: int) -> pd.DataFrame():
 
 
 def update_lookup_table(
-    api_key: str, parent_folder: str, style: int, output_fpath: str = None
-):
+    api_key: str, parent_folder: str, style: int, lookuptab_path: str = None
+) -> pd.DataFrame:
+    """Creates or updates the lookup table.
+
+    Parameters
+    --------
+    api_key : str
+        TMDB API key
+    parent_folder : str
+        filepath to folder containing all movies
+    style : int
+        parsing style
+    lookuptab_path : str
+        (Optional) path to lookup table
+
+    Returns
+    --------
+    pd.DataFrame
+        updated lookup table
+    """
     df = import_folder(parent_folder, style)
 
-    if output_fpath == None:
-        output_fpath = os.getcwd() + "/tmms_lookuptab.csv"
-    if os.path.exists(output_fpath):
-        df_stale = pd.read_csv(output_fpath, sep=";", encoding="UTF-8")
+    if lookuptab_path == None:
+        lookuptab_path = os.getcwd() + "/tmms_lookuptab.csv"
+    if os.path.exists(lookuptab_path):
+        df_stale = pd.read_csv(lookuptab_path, sep=";", encoding="UTF-8")
         diff = df[~(df["disk.fname"].isin(df_stale["disk.fname"]))]
         df = pd.concat([df_stale, diff], axis=0)
         df.reset_index(drop=True)
@@ -308,7 +327,25 @@ def update_lookup_table(
     return df
 
 
-def get_metadata(api_key: str, id_list: list, m: bool, c: bool):
+def get_metadata(api_key: str, id_list: list, m: bool, c: bool) -> pd.DataFrame:
+    """Query TMDB for movie metadata or credits for specified ids.
+
+    Parameters
+    --------
+    api_key : str
+        tmdb API key
+    id_list : list
+        list of ids
+    m : bool
+        flag for pulling movie metadata
+    c : bool
+        flag for pulling credits
+
+    Returns
+    --------
+        DataFrame containing metadata and/or credits for supplied
+        id_list
+    """
     if (m == False and c == False) or not id_list:
         return pd.DataFrame()
 
@@ -345,6 +382,18 @@ def write_to_disk(
     default_name: str,
     path: str = None,
 ):
+    """Write df to path. If path is not specified, it is written
+    to as default_name.csv to the working directory.
+
+    Parameters
+    --------
+    df : pd.DataFrame
+        DataFrame to be written.
+    default_name : str
+        Name to use for writing if no path is supplied.
+    path : str
+        Optional, path to write df to.
+    """
     if path == None:
         path = os.getcwd() + f"/{default_name}.csv"
 
