@@ -125,6 +125,14 @@ def lookup_id(api_key: str, title: str, year: str) -> int():
         return ERROR_ID
 
 
+def unlist(response: dict, record_path: str, id: int):
+    df = pd.json_normalize(
+        response, record_path=record_path, record_prefix=f"m.{record_path}."
+    )
+    df["m.id"] = id
+    return df
+
+
 def lookup_details(api_key: str, m_id: int) -> pd.DataFrame:
     """Queries the TMDB API for movie details for m_id. The
     resulting JSON is flattened and fed into a DataFrame.
@@ -147,70 +155,54 @@ def lookup_details(api_key: str, m_id: int) -> pd.DataFrame:
     url = f"https://api.themoviedb.org/3/movie/{m_id}?api_key={api_key}&include_adult=true"
     response = requests.get(url).json()
 
-    # TODO belongs_to_collection doesnt get flattened
-
-    to_unnest = [
-        "spoken_languages",
+    df = pd.json_normalize(
+        response,
+        meta=[
+            "adult",
+            "backdrop_path",
+            "budget",
+            "homepage",
+            "id",
+            "imdb_id",
+            "original_language",
+            "original_title",
+            "overview",
+            "popularity",
+            "poster_path",
+            "release_date",
+            "revenue",
+            "runtime",
+            "status",
+            "tagline",
+            "title",
+            "video",
+            "vote_average",
+            "vote_count",
+        ],
+        errors="ignore",
+    )
+    to_unlist = [
         "genres",
         "production_companies",
         "production_countries",
+        "spoken_languages",
     ]
 
-    for col in to_unnest:
-        df = pd.json_normalize(
-            response,
-            record_path=col,
-            meta=[
-                "adult",
-                "backdrop_path",
-                "budget",
-                "homepage",
-                "id",
-                "imdb_id",
-                "original_language",
-                "original_title",
-                "overview",
-                "popularity",
-                "poster_path",
-                "release_date",
-                "revenue",
-                "runtime",
-                "status",
-                "tagline",
-                "title",
-                "video",
-                "vote_average",
-                "vote_count",
-            ],
-            record_prefix=col + ".",
-            errors="ignore",
-        )
+    df = df.drop(
+        to_unlist,
+        axis=1,
+        inplace=False,
+    )
+
     df = df.add_prefix("m.")
 
-    col_types = {
-        "m.production_countries.iso_3166_1": str,
-        "m.production_countries.name": str,
-        "m.adult": str,
-        "m.backdrop_path": str,
-        "m.budget": int,
-        "m.homepage": str,
-        "m.id": int,
-        "m.imdb_id": str,
-        "m.original_language": str,
-        "m.original_title": str,
-        "m.overview": str,
-        "m.popularity": int,
-        "m.poster_path": str,
-        "m.release_date": str,
-        "m.revenue": int,
-        "m.runtime": int,
-        "m.status": str,
-        "m.tagline": str,
-        "m.title": str,
-        "m.video": str,
-        "m.vote_average": float,
-        "m.vote_count": int,
-    }
+    # df_unlist = pd.DataFrame()
+    for col in to_unlist:
+        tmp = unlist(response, col, m_id)
+        # if df_unlist.empty:
+        #    df_unlist = tmp
+        #    continue
+        df = df.merge(tmp, how="inner", on="m.id")
 
     return df
 
@@ -310,6 +302,7 @@ def update_lookup_table(
         df_stale = pd.read_csv(lookuptab_path, sep=";", encoding="UTF-8")
         diff = df[~(df["disk.fname"].isin(df_stale["disk.fname"]))]
         df = pd.concat([df_stale, diff], axis=0)
+        df["tmms.id_auto"] = df["tmms.id_auto"].fillna(-2).astype(int)
         df.reset_index(drop=True)
 
     # GET IDs
@@ -317,7 +310,9 @@ def update_lookup_table(
     auto_ids = []
     for index, row in tqdm(df.iterrows(), desc="IDs    ", total=len(df["disk.fname"])):
         if row["tmms.id_man"] != 0:
-            continue
+            auto_ids.append(row["tmms.id_auto"])
+        elif int(row["tmms.id_auto"]) > 0:
+            auto_ids.append(row["tmms.id_auto"])
         else:
             auto_ids.append(
                 lookup_id(api_key, row["disk.title"], str(row["disk.year"]))
@@ -427,9 +422,9 @@ def main(
     )
     unique_ids = list(dict.fromkeys(unique_ids))
 
-    metadata_df = get_metadata(api_key, unique_ids, m, c)
-
-    write_to_disk(metadata_df, "tmms_metadata", metadata_path)
+    if m or c:
+        metadata_df = get_metadata(api_key, unique_ids, m, c)
+        write_to_disk(metadata_df, "tmms_metadata", metadata_path)
 
     duration = datetime.now() - start
     print(f"finished in {duration}")
