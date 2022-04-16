@@ -28,23 +28,66 @@ python tmms.py
 
 For every subfolder the TMDB API is queried. Incase of multiple results for querying with title and year, the most popular one is kept. If there no results, another query only including the title is sent.
 
-The resulting dataframe is flattened; eg. one movie with two genres will feature two rows with different genres. 
+## Result Specs
+**Movie Details**
+```
+m.adult
+m.backdrop_path
+m.belongs_to_collection
+m.budget
+m.genres.id
+m.genres.name
+m.homepage
+m.id
+m.imdb_id
+m.original_language
+m.original_title
+m.overview
+m.popularity
+m.poster_path
+m.production_companies.id
+m.production_companies.logo_path
+m.production_companies.name
+m.production_companies.origin_country
+m.production_countries.iso_3166_1
+m.production_countries.name
+m.release_date
+m.revenue
+m.runtime
+m.spoken_languages.english_name
+m.spoken_languages.iso_639_1
+m.spoken_languages.name
+m.status
+m.tagline
+m.title
+m.video
+m.vote_average
+m.vote_count
+```
+In the API JSON response the following columns were arrays of nested objects - these get unlisted, multiplying each record depending on the arrays cardinality:
+* spoken_languages
+* production_companies
+* production_countries
+* genres
 
-## How it works
-
-Two files are created:
-1. a lookup table where all subfolders and their title, year is stored
-2. the metadata file for movie details and cast
-
-If no lookup table exists, the parent_folders contents are parsed into a dataframe. Two additional columns
-are created, tmms.id_auto and tmms.id_man.
-
-Incase a lookup file exists, it is read and compared to the actual directory. New folders get appended.
-
-For all rows the TMDB is searched and the most populars result id is written into tmms.id_auto.
-
-tmms.id_man and tmms.id_auto are coalesced so that the automatic id is overwritten by the manual one.
-Duplicate ids get removed from that list.
-
-Depending on the m or c flag, movie details and respective credits are pulled from the TMDB API.
-If both flags are set, results get joined by the TMDB id and written to disk as metadata file.
+**Credits**
+```
+cc.adult
+cc.cast_id
+cc.character
+cc.credit.type **
+cc.credit_id
+cc.department
+cc.gender
+cc.id
+cc.job
+cc.known_for_department
+cc.m_id *
+cc.name
+cc.order
+cc.original_name
+cc.popularity
+cc.profile_path
+```
+* original name without prefix would be id, which conflicts with id for the respective cast / crew. 
+** credit type is a new colum imposed by the script so that cast and crew can be differentiated while appending similar columns.
