@@ -467,10 +467,10 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--m", action="store_false", help="set flag for skipping movie detail data"
+        "--m", action="store_true", help="set flag for pulling movie detail data"
     )
     parser.add_argument(
-        "--c", action="store_false", help="set flag for skipping credit data"
+        "--c", action="store_true", help="set flag for pulling credit data"
     )
 
     args = parser.parse_args()
