@@ -7,6 +7,7 @@ import numpy as np
 import argparse
 from datetime import datetime
 import json
+import logging
 import re
 import requests
 import os
@@ -298,7 +299,10 @@ def update_lookup_table(
 
     if lookuptab_path == None:
         lookuptab_path = os.getcwd() + "/tmms_lookuptab.csv"
+        logging.info(f"creating new lookuptable at {lookuptab_path}")
     if os.path.exists(lookuptab_path):
+        logging.info("lookuptable already exists")
+
         df_stale = pd.read_csv(lookuptab_path, sep=";", encoding="UTF-8")
         diff = df[~(df["disk.fname"].isin(df_stale["disk.fname"]))]
         df = pd.concat([df_stale, diff], axis=0)
@@ -309,14 +313,21 @@ def update_lookup_table(
 
     auto_ids = []
     for index, row in tqdm(df.iterrows(), desc="IDs    ", total=len(df["disk.fname"])):
+        fname = row["disk.fname"]
+
         if row["tmms.id_man"] != 0:
             auto_ids.append(row["tmms.id_auto"])
+            logging.info(f"{fname}: tmms.id_man entered")
         elif int(row["tmms.id_auto"]) > 0:
             auto_ids.append(row["tmms.id_auto"])
+            logging.info(f"{fname}: tmms.id_auto already exists")
         else:
-            auto_ids.append(
-                lookup_id(api_key, row["disk.title"], str(row["disk.year"]))
-            )
+            new_id = lookup_id(api_key, row["disk.title"], str(row["disk.year"]))
+            auto_ids.append(new_id)
+            if new_id == -1:
+                logging.info(f"{fname}: tmms.id_auto not found")
+            else:
+                logging.info(f"{fname}: tmms.id_auto found {new_id}")
 
     df["tmms.id_auto"] = auto_ids
     return df
@@ -405,6 +416,23 @@ def main(
     lookuptab_path: str = None,
     metadata_path: str = None,
 ):
+
+    logger = logging.getLogger("tmmslogger")
+    logging.basicConfig(
+        filename="./tmms-log.log",
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(funcName)s - %(message)s",
+    )
+
+    logging.info(
+        "start parameters:\n"
+        + f"parent_folder: {parent_folder}\n"
+        + f"style: {style}\n"
+        + f"m: {m}\n"
+        + f"c: {c}\n"
+        + f"lookuptab_path: {lookuptab_path}\n"
+        + f"metadata_path: {metadata_path}"
+    )
 
     start = datetime.now()
 
