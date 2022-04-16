@@ -403,7 +403,14 @@ def write_to_disk(
     if path == None:
         path = os.getcwd() + f"/{default_name}.csv"
 
-    df.to_csv(path, sep=";", encoding="UTF-8", index=False, decimal=",")
+    df.to_csv(
+        path,
+        sep=";",
+        encoding="UTF-8",
+        index=False,
+        decimal=",",
+        date_format="%Y-%m-%d",
+    )
     print(f"saved {default_name}.csv to {path}")
 
 
