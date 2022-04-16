@@ -64,7 +64,7 @@ m.video
 m.vote_average
 m.vote_count
 ```
-In the API JSON response the following columns were arrays of nested objects - these get unlisted, multiplying each record depending on the arrays cardinality:
+In the APIs JSON response the following columns are arrays of nested objects - these get unlisted, multiplying each record depending on the arrays cardinality:
 * spoken_languages
 * production_companies
 * production_countries
@@ -90,4 +90,5 @@ cc.popularity
 cc.profile_path
 ```
 * original name without prefix would be id, which conflicts with id for the respective cast / crew. 
+
 ** credit type is a new colum imposed by the script so that cast and crew can be differentiated while appending similar columns.
