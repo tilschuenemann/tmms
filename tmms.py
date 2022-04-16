@@ -230,19 +230,19 @@ def lookup_credits(api_key: str, m_id: int) -> pd.DataFrame():
     url = f"https://api.themoviedb.org/3/movie/{m_id}/credits?api_key={api_key}"
     response = requests.get(url).json()
 
-    response["m_id"] = response.pop("id")
+    response["m.id"] = response.pop("id")
 
     cast = pd.json_normalize(
         response,
         record_path="cast",
-        meta="m_id",
+        meta="m.id",
         errors="ignore",
     )
 
     crew = pd.json_normalize(
         response,
         record_path="crew",
-        meta="m_id",
+        meta="m.id",
         errors="ignore",
     )
 
@@ -265,7 +265,7 @@ def lookup_credits(api_key: str, m_id: int) -> pd.DataFrame():
         "cc.character": str,
         "cc.credit_id": str,
         "cc.order": int,
-        "cc.m_id": int,
+        "cc.m.id": int,
         "cc.credit.type": str,
         "cc.department": str,
         "cc.job": str,
@@ -373,7 +373,7 @@ def get_metadata(api_key: str, id_list: list, m: bool, c: bool) -> pd.DataFrame:
 
     # merge, sort and ave
     if m and c:
-        df = details.merge(credits, left_on="m.id", right_on="cc.m_id")
+        df = details.merge(credits, left_on="m.id", right_on="cc.m.id")
     elif m:
         df = details
     elif c:
