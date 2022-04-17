@@ -486,13 +486,19 @@ def main(
         cast_crew.replace("None", "", inplace=True)
 
     if m:
-        write_to_disk(details, output_folder + "/tmms_moviedetails.csv")
-        write_to_disk(genres, output_folder + "/tmms_genres.csv")
-        write_to_disk(prod_comp, output_folder + "/tmms_production_companies.csv")
-        write_to_disk(prod_count, output_folder + "/tmms_production_countries.csv")
-        write_to_disk(spoken_langs, output_folder + "/tmms_spoken_languages.csv")
+
+        genres.add_prefix("genres.")
+        prod_comp.add_prefix("production_countries.")
+        prod_count.add_prefix("production_countries.")
+        spoken_langs.add_prefix("spoken_languages.")
+
+        write_to_disk(details, output_folder + "tmms_moviedetails.csv")
+        write_to_disk(genres, output_folder + "tmms_genres.csv")
+        write_to_disk(prod_comp, output_folder + "tmms_production_companies.csv")
+        write_to_disk(prod_count, output_folder + "tmms_production_countries.csv")
+        write_to_disk(spoken_langs, output_folder + "tmms_spoken_languages.csv")
     if c:
-        write_to_disk(cast_crew, output_folder + "/tmms_credits.csv")
+        write_to_disk(cast_crew, output_folder + "tmms_credits.csv")
 
     duration = datetime.now() - start
     print(f"finished in {duration}")
