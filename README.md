@@ -92,3 +92,4 @@ cc.profile_path
 * original name without prefix would be id, which conflicts with id for the respective cast / crew. 
 
 ** credit type is a new colum imposed by the script so that cast and crew can be differentiated while appending similar columns.
+ 
