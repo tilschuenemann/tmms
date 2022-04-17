@@ -444,19 +444,19 @@ def get_metadata(api_key: str, id_list: list, m: bool, c: bool) -> pd.DataFrame:
 
     # GET CREDITS
     if c:
-        credits = pd.DataFrame()
+        cast_crew = pd.DataFrame()
         for movie_id in tqdm(id_list, desc="Credits"):
             tmp = lookup_credits(api_key, movie_id)
-            credits = pd.concat([credits, tmp], axis=0)
-        credits.reset_index(drop=True)
+            cast_crew = pd.concat([cast_crew, tmp], axis=0)
+        cast_crew.reset_index(drop=True)
 
     # merge, sort and ave
     if m and c:
-        df = details.merge(credits, left_on="m.id", right_on="cc.m.id")
+        df = details.merge(cast_crew, left_on="m.id", right_on="cc.m.id")
     elif m:
         df = details
     elif c:
-        df = credits
+        df = cast_crew
 
     df = df[sorted(df.columns)]
     return df
