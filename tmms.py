@@ -125,66 +125,20 @@ def lookup_id(api_key: str, title: str, year: str) -> int():
         return ERROR_ID
 
 
-def lcm_merge(df_list: list(pd.DataFrame())) -> pd.DataFrame():
-    """For a given list of dataframes, the lowest common multiple
-    of their lengths is determined. Every df is copied along its
-    rows until their length matches the LCM.
-    All df are concatenated and returned.
-
-    If a df has no elements or the LCM is zero, an empty df is
-    returned.
-
-    Parameters
-    -------
-    df_list: list(pd.DataFrame())
-        List of dataframes
-
-    Returns
-    -------
-        pd.DataFrame
-    """
-    lengths = []
-    for df in df_list:
-        lengths.append(len(df.index))
-
-    if len(lengths) <= 0:
-        return pd.DataFrame()
-
-    lcm = np.lcm.reduce(lengths)
-    if lcm <= 0:
-        return pd.DataFrame()
-
-    result = pd.DataFrame()
-
-    for datf in df_list:
-        df_tmp = datf.copy()
-        df_tmp = pd.concat([df_tmp] * int(lcm / len(df_tmp.index)))
-        df_tmp.reset_index(drop=True, inplace=True)
-        result = pd.concat([result, df_tmp], axis=1)
-    return result
-
-
-def lookup_details(api_key: str, m_id: int) -> pd.DataFrame:
+def lookup_details(response: dict) -> pd.DataFrame:
     """Queries the TMDB API for movie details for m_id. The
     resulting JSON is flattened and fed into a DataFrame.
 
     Parameters
     --------
-    api_key : str
-        TMDB API key
-    m_id : int
-        TMDB movie id
+    response : dict
+        TMDB API response for movie endpoint
 
     Returns
     --------
     pd.DataFrame
         DataFrame containing m_id metadata
     """
-    if m_id == -1:
-        return pd.DataFrame()
-
-    url = f"https://api.themoviedb.org/3/movie/{m_id}?api_key={api_key}&include_adult=true"
-    response = requests.get(url).json()
 
     df = pd.json_normalize(
         response,
@@ -212,6 +166,7 @@ def lookup_details(api_key: str, m_id: int) -> pd.DataFrame:
         ],
         errors="ignore",
     )
+
     to_unlist = [
         "genres",
         "production_companies",
@@ -226,13 +181,6 @@ def lookup_details(api_key: str, m_id: int) -> pd.DataFrame:
     )
 
     df = df.add_prefix("m.")
-
-    df_list = [df]
-    for col in to_unlist:
-        tmp_df = pd.json_normalize(response, record_path=col, record_prefix=f"m.{col}.")
-        df_list.append(tmp_df)
-
-    df = lcm_merge(df_list)
 
     col_types = {
         "m.adult": bool,
@@ -441,6 +389,12 @@ def write_to_disk(
     print(f"saved {output_path}")
 
 
+def unnest(response, mid, column):
+    df = pd.json_normalize(response, record_path=column)
+    df["m.id"] = mid
+    return df
+
+
 def main(
     api_key: str,
     input_folder: str,
@@ -477,6 +431,7 @@ def main(
         exit("no api key supplied")
 
     lookup_df = update_lookup_table(api_key, input_folder, 0, output_folder)
+    write_to_disk(lookup_df, output_folder + "tmms_lookuptab.csv")
 
     unique_ids = np.where(
         lookup_df["tmms.id_man"] != 0,
@@ -484,10 +439,60 @@ def main(
         lookup_df["tmms.id_auto"],
     )
     unique_ids = list(dict.fromkeys(unique_ids))
+    unique_ids.remove(-1)
 
-    if m or c:
-        metadata_df = get_metadata(api_key, unique_ids, m, c)
-        write_to_disk(metadata_df, "tmms_metadata", metadata_path)
+    details = pd.DataFrame()
+    genres = pd.DataFrame()
+    prod_comp = pd.DataFrame()
+    prod_count = pd.DataFrame()
+    spoken_langs = pd.DataFrame()
+
+    if m:
+        for mid in tqdm(unique_ids, "details"):
+
+            url = f"https://api.themoviedb.org/3/movie/{mid}?api_key={api_key}&include_adult=true"
+            response = requests.get(url).json()
+
+            tmp = lookup_details(response)
+            details = pd.concat([details, tmp], axis=0)
+
+            to_unlist = [
+                "genres",
+                "production_companies",
+                "production_countries",
+                "spoken_languages",
+            ]
+            for col in to_unlist:
+                tmp = unnest(response, mid, col)
+
+                if col == "genres":
+                    genres = pd.concat([genres, tmp], axis=0)
+                elif col == "production_companies":
+                    prod_comp = pd.concat([prod_comp, tmp], axis=0)
+                elif col == "production_countries":
+                    prod_count = pd.concat([prod_count, tmp], axis=0)
+                elif col == "spoken_languages":
+                    spoken_langs = pd.concat([spoken_langs, tmp], axis=0)
+
+        details.replace("None", "", inplace=True)
+
+    if c:
+        for mid in tqdm(unique_ids, "cast and crew"):
+            cast_crew = pd.DataFrame()
+            tmp = lookup_credits(api_key, mid)
+            cast_crew = pd.concat([cast_crew, tmp], axis=0)
+
+        cast_crew.replace("nan", "", inplace=True)
+        cast_crew.replace("None", "", inplace=True)
+
+    if m:
+        write_to_disk(details, output_folder + "/tmms_moviedetails.csv")
+        write_to_disk(genres, output_folder + "/tmms_genres.csv")
+        write_to_disk(prod_comp, output_folder + "/tmms_production_companies.csv")
+        write_to_disk(prod_count, output_folder + "/tmms_production_countries.csv")
+        write_to_disk(spoken_langs, output_folder + "/tmms_spoken_languages.csv")
+    if c:
+        write_to_disk(cast_crew, output_folder + "/tmms_credits.csv")
 
     duration = datetime.now() - start
     print(f"finished in {duration}")
