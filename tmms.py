@@ -7,6 +7,7 @@ import numpy as np
 import argparse
 from datetime import datetime
 import json
+import logging
 import re
 import requests
 import os
@@ -125,12 +126,43 @@ def lookup_id(api_key: str, title: str, year: str) -> int():
         return ERROR_ID
 
 
-def unlist(response: dict, record_path: str, id: int):
-    df = pd.json_normalize(
-        response, record_path=record_path, record_prefix=f"m.{record_path}."
-    )
-    df["m.id"] = id
-    return df
+def lcm_merge(df_list: list(pd.DataFrame())) -> pd.DataFrame():
+    """For a given list of dataframes, the lowest common multiple
+    of their lengths is determined. Every df is copied along its
+    rows until their length matches the LCM.
+    All df are concatenated and returned.
+
+    If a df has no elements or the LCM is zero, an empty df is
+    returned.
+
+    Parameters
+    -------
+    df_list: list(pd.DataFrame())
+        List of dataframes
+
+    Returns
+    -------
+        pd.DataFrame
+    """
+    lengths = []
+    for df in df_list:
+        lengths.append(len(df.index))
+
+    if len(lengths) <= 0:
+        return pd.DataFrame()
+
+    lcm = np.lcm.reduce(lengths)
+    if lcm <= 0:
+        return pd.DataFrame()
+
+    result = pd.DataFrame()
+
+    for datf in df_list:
+        df_tmp = datf.copy()
+        df_tmp = pd.concat([df_tmp] * int(lcm / len(df_tmp.index)))
+        df_tmp.reset_index(drop=True, inplace=True)
+        result = pd.concat([result, df_tmp], axis=1)
+    return result
 
 
 def lookup_details(api_key: str, m_id: int) -> pd.DataFrame:
@@ -188,21 +220,65 @@ def lookup_details(api_key: str, m_id: int) -> pd.DataFrame:
         "spoken_languages",
     ]
 
-    df = df.drop(
+    df.drop(
         to_unlist,
         axis=1,
-        inplace=False,
+        inplace=True,
     )
 
     df = df.add_prefix("m.")
 
-    # df_unlist = pd.DataFrame()
+    df_list = [df]
     for col in to_unlist:
-        tmp = unlist(response, col, m_id)
-        # if df_unlist.empty:
-        #    df_unlist = tmp
-        #    continue
-        df = df.merge(tmp, how="inner", on="m.id")
+        tmp_df = pd.json_normalize(response, record_path=col, record_prefix=f"m.{col}.")
+        df_list.append(tmp_df)
+
+    df = lcm_merge(df_list)
+
+    col_types = {
+        "m.adult": bool,
+        "m.backdrop_path": str,
+        "m.belongs_to_collection.backdrop_path": str,
+        "m.belongs_to_collection.id": "Int64",
+        "m.belongs_to_collection.name": str,
+        "m.belongs_to_collection.poster_path": str,
+        "m.budget": "Int64",
+        "m.genres.id": "Int64",
+        "m.genres.name": str,
+        "m.homepage": str,
+        "m.id": "Int64",
+        "m.imdb_id": str,
+        "m.original_language": str,
+        "m.original_title": str,
+        "m.overview": str,
+        "m.popularity": float,
+        "m.poster_path": str,
+        "m.production_companies.id": "Int64",
+        "m.production_companies.logo_path": str,
+        "m.production_companies.name": str,
+        "m.production_companies.origin_country": str,
+        "m.production_countries.iso_3166_1": str,
+        "m.production_countries.name": str,
+        "m.release_date": str,
+        "m.revenue": "Int64",
+        "m.runtime": "Int64",
+        "m.spoken_languages.english_name": str,
+        "m.spoken_languages.iso_639_1": str,
+        "m.spoken_languages.name": str,
+        "m.status": str,
+        "m.tagline": str,
+        "m.title": str,
+        "m.video": bool,
+        "m.vote_average": float,
+        "m.vote_count": "Int64",
+    }
+
+    for key, value in col_types.items():
+        if key in df.columns:
+            df[key] = df[key].astype({key: value})
+
+    if "m.belongs_to_collection" in df.columns:
+        df.drop("m.belongs_to_collection", inplace=True, axis=1)
 
     return df
 
@@ -229,19 +305,19 @@ def lookup_credits(api_key: str, m_id: int) -> pd.DataFrame():
     url = f"https://api.themoviedb.org/3/movie/{m_id}/credits?api_key={api_key}"
     response = requests.get(url).json()
 
-    response["m_id"] = response.pop("id")
+    response["m.id"] = response.pop("id")
 
     cast = pd.json_normalize(
         response,
         record_path="cast",
-        meta="m_id",
+        meta="m.id",
         errors="ignore",
     )
 
     crew = pd.json_normalize(
         response,
         record_path="crew",
-        meta="m_id",
+        meta="m.id",
         errors="ignore",
     )
 
@@ -249,26 +325,29 @@ def lookup_credits(api_key: str, m_id: int) -> pd.DataFrame():
     crew["credit.type"] = "crew"
     cast_crew = pd.concat([cast, crew], axis=0)
     cast_crew = cast_crew.add_prefix("cc.")
-    cast_crew.fillna(0, inplace=True)
 
     col_types = {
         "cc.adult": bool,
-        "cc.gender": int,
-        "cc.id": int,
+        "cc.gender": "Int64",
+        "cc.id": "Int64",
         "cc.known_for_department": str,
         "cc.name": str,
         "cc.original_name": str,
         "cc.popularity": float,
         "cc.profile_path": str,
-        "cc.cast_id": int,
+        "cc.cast_id": "Int64",
         "cc.character": str,
         "cc.credit_id": str,
-        "cc.order": int,
-        "cc.m_id": int,
+        "cc.order": "Int64",
+        "cc.m.id": "Int64",
         "cc.credit.type": str,
         "cc.department": str,
         "cc.job": str,
     }
+
+    for key, value in col_types.items():
+        if key in cast_crew.columns:
+            cast_crew[key] = cast_crew[key].astype({key: value})
 
     return cast_crew
 
@@ -298,7 +377,10 @@ def update_lookup_table(
 
     if lookuptab_path == None:
         lookuptab_path = os.getcwd() + "/tmms_lookuptab.csv"
+        logging.info(f"creating new lookuptable at {lookuptab_path}")
     if os.path.exists(lookuptab_path):
+        logging.info("lookuptable already exists")
+
         df_stale = pd.read_csv(lookuptab_path, sep=";", encoding="UTF-8")
         diff = df[~(df["disk.fname"].isin(df_stale["disk.fname"]))]
         df = pd.concat([df_stale, diff], axis=0)
@@ -309,14 +391,21 @@ def update_lookup_table(
 
     auto_ids = []
     for index, row in tqdm(df.iterrows(), desc="IDs    ", total=len(df["disk.fname"])):
+        fname = row["disk.fname"]
+
         if row["tmms.id_man"] != 0:
             auto_ids.append(row["tmms.id_auto"])
+            logging.info(f"{fname}: tmms.id_man entered")
         elif int(row["tmms.id_auto"]) > 0:
             auto_ids.append(row["tmms.id_auto"])
+            logging.info(f"{fname}: tmms.id_auto already exists")
         else:
-            auto_ids.append(
-                lookup_id(api_key, row["disk.title"], str(row["disk.year"]))
-            )
+            new_id = lookup_id(api_key, row["disk.title"], str(row["disk.year"]))
+            auto_ids.append(new_id)
+            if new_id == -1:
+                logging.info(f"{fname}: tmms.id_auto not found")
+            else:
+                logging.info(f"{fname}: tmms.id_auto found {new_id}")
 
     df["tmms.id_auto"] = auto_ids
     return df
@@ -351,22 +440,25 @@ def get_metadata(api_key: str, id_list: list, m: bool, c: bool) -> pd.DataFrame:
             tmp = lookup_details(api_key, movie_id)
             details = pd.concat([details, tmp], axis=0)
         details.reset_index(drop=True)
+        details.replace("None", "", inplace=True)
 
     # GET CREDITS
     if c:
-        credits = pd.DataFrame()
+        cast_crew = pd.DataFrame()
         for movie_id in tqdm(id_list, desc="Credits"):
             tmp = lookup_credits(api_key, movie_id)
-            credits = pd.concat([credits, tmp], axis=0)
-        credits.reset_index(drop=True)
+            cast_crew = pd.concat([cast_crew, tmp], axis=0)
+        cast_crew.reset_index(drop=True)
+        cast_crew.replace("nan", "", inplace=True)
+        cast_crew.replace("None", "", inplace=True)
 
     # merge, sort and ave
     if m and c:
-        df = details.merge(credits, left_on="m.id", right_on="cc.m_id")
+        df = details.merge(cast_crew, left_on="m.id", right_on="cc.m.id")
     elif m:
         df = details
     elif c:
-        df = credits
+        df = cast_crew
 
     df = df[sorted(df.columns)]
     return df
@@ -392,7 +484,14 @@ def write_to_disk(
     if path == None:
         path = os.getcwd() + f"/{default_name}.csv"
 
-    df.to_csv(path, sep=";", encoding="UTF-8", index=False, decimal=",")
+    df.to_csv(
+        path,
+        sep=";",
+        encoding="UTF-8",
+        index=False,
+        decimal=",",
+        date_format="%Y-%m-%d",
+    )
     print(f"saved {default_name}.csv to {path}")
 
 
@@ -405,6 +504,23 @@ def main(
     lookuptab_path: str = None,
     metadata_path: str = None,
 ):
+
+    logger = logging.getLogger("tmmslogger")
+    logging.basicConfig(
+        filename="./tmms-log.log",
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(funcName)s - %(message)s",
+    )
+
+    logging.info(
+        "start parameters:\n"
+        + f"parent_folder: {parent_folder}\n"
+        + f"style: {style}\n"
+        + f"m: {m}\n"
+        + f"c: {c}\n"
+        + f"lookuptab_path: {lookuptab_path}\n"
+        + f"metadata_path: {metadata_path}"
+    )
 
     start = datetime.now()
 
