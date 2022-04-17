@@ -72,7 +72,7 @@ def import_folder(input_folder: str, style: int) -> pd.DataFrame():
     return df
 
 
-def lookup_id(api_key: str, title: str, year: str) -> int():
+def lookup_id(api_key: str, title: str, year: str = None) -> int:
     """Creates a search get request for TMDB API.
 
     Searches for combination of title and year first -
@@ -81,11 +81,12 @@ def lookup_id(api_key: str, title: str, year: str) -> int():
 
     Incase of multiple results the first one is taken.
 
-    If the supplied title is an empty string or no final
-    results can be returned, -1 is returned.
+    If the supplied title is an empty string or nothing
+    is found, -1 is returned.
+
 
     Parameters
-    --------
+    -------
     api_key : str
         TMDB API key
     title : str
@@ -94,38 +95,33 @@ def lookup_id(api_key: str, title: str, year: str) -> int():
         movie release year
 
     Returns
-    --------
+    -------
     int
-        TMDB id for first search result
+        TMDB id
+
     """
-
-    ERROR_ID = -1
-    retry = False
-
     if str_empty(title):
-        return ERROR_ID
-    elif str_empty(title) == False and str_empty(year) == False:
-        url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&year={year}&include_adult=true"
-        retry = True
-    elif str_empty(title) == False and str_empty(year):
-        url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&include_adult=true&page=1"
+        return -1
 
+    if year is not None:
+        url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&year={year}&include_adult=true"
     response = requests.get(url).json()
 
     try:
-        id = int(response["results"][0]["id"])
-        return id
+            mid = int(response["results"][0]["id"])
+            return mid
     except IndexError:
-        if retry:
-            url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&include_adult=true&page=1"
+            return lookup_id2(api_key, title)
+
+    elif year is None:
+        url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&include_adult=true"
             response = requests.get(url).json()
 
             try:
-                id = int(response["results"][0]["id"])
-                return id
+            mid = int(response["results"][0]["id"])
+            return mid
             except IndexError:
-                return ERROR_ID
-        return ERROR_ID
+            return -1
 
 
 def lookup_details(response: dict) -> pd.DataFrame:
