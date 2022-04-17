@@ -245,8 +245,6 @@ def lookup_credits(api_key: str, m_id: int) -> pd.DataFrame():
     pd.DataFrame
         DataFrame containing m_id cast and crew
     """
-    if m_id == -1:
-        return pd.DataFrame()
 
     url = f"https://api.themoviedb.org/3/movie/{m_id}/credits?api_key={api_key}"
     response = requests.get(url).json()
@@ -331,9 +329,6 @@ def update_lookup_table(
     df = import_folder(input_folder, style)
     lookuptab = output_folder + "/tmms_lookuptab.csv"
 
-    if output_folder == None:
-        output_folder = os.getcwd() + "/tmms_lookuptab.csv"
-        logging.info(f"creating new lookuptable at {output_folder}")
     if os.path.exists(lookuptab):
         logging.info("lookuptable already exists")
 
@@ -390,6 +385,8 @@ def write_to_disk(
         decimal=",",
         date_format="%Y-%m-%d",
     )
+    logging.info(f"saved {output_path}")
+
 
 def unnest(response: dict, mid: int, column: str) -> pd.DataFrame:
     """Unnests column in specified response and adds mid as identifier.
@@ -471,7 +468,7 @@ def main(
         spoken_langs = pd.DataFrame()
 
     if m:
-        for mid in tqdm(unique_ids, "details"):
+        for mid in tqdm(unique_ids, "Details"):
 
             url = f"https://api.themoviedb.org/3/movie/{mid}?api_key={api_key}&include_adult=true"
             response = requests.get(url).json()
@@ -511,7 +508,7 @@ def main(
         write_to_disk(spoken_langs, output_folder + "tmms_spoken_languages.csv")
 
     if c:
-        for mid in tqdm(unique_ids, "cast and crew"):
+        for mid in tqdm(unique_ids, "Credits"):
             cast_crew = pd.DataFrame()
             tmp = lookup_credits(api_key, mid)
             cast_crew = pd.concat([cast_crew, tmp], axis=0)
