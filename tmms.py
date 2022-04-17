@@ -1,5 +1,7 @@
 import pandas as pd
 from pandas import json_normalize
+from tqdm import tqdm
+import numpy as np
 
 
 import argparse
@@ -8,7 +10,6 @@ import json
 import re
 import requests
 import os
-from progress.bar import Bar
 
 
 def str_empty(my_string: str):
@@ -62,11 +63,15 @@ def import_folder(parent_folder: str, style: int) -> pd.DataFrame():
         df["disk.title"] = df["disk.fname"].str.extract(r"^\d{4} - (.+)", expand=False)
     else:
         return pd.DataFrame()
+
+    df["tmms.id_man"] = 0
+    df["tmms.id_auto"] = 0
     return df
 
 
 def lookup_id(api_key: str, title: str, year: str) -> int():
     """Creates a search get request for TMDB API.
+
     Searches for combination of title and year first -
     if response is empty another search only using the title
     is performed.
@@ -120,6 +125,14 @@ def lookup_id(api_key: str, title: str, year: str) -> int():
         return ERROR_ID
 
 
+def unlist(response: dict, record_path: str, id: int):
+    df = pd.json_normalize(
+        response, record_path=record_path, record_prefix=f"m.{record_path}."
+    )
+    df["m.id"] = id
+    return df
+
+
 def lookup_details(api_key: str, m_id: int) -> pd.DataFrame:
     """Queries the TMDB API for movie details for m_id. The
     resulting JSON is flattened and fed into a DataFrame.
@@ -142,72 +155,54 @@ def lookup_details(api_key: str, m_id: int) -> pd.DataFrame:
     url = f"https://api.themoviedb.org/3/movie/{m_id}?api_key={api_key}&include_adult=true"
     response = requests.get(url).json()
 
-    # TODO belongs_to_collection doesnt get flattened
-
-    to_unnest = [
-        "spoken_languages",
+    df = pd.json_normalize(
+        response,
+        meta=[
+            "adult",
+            "backdrop_path",
+            "budget",
+            "homepage",
+            "id",
+            "imdb_id",
+            "original_language",
+            "original_title",
+            "overview",
+            "popularity",
+            "poster_path",
+            "release_date",
+            "revenue",
+            "runtime",
+            "status",
+            "tagline",
+            "title",
+            "video",
+            "vote_average",
+            "vote_count",
+        ],
+        errors="ignore",
+    )
+    to_unlist = [
         "genres",
         "production_companies",
         "production_countries",
+        "spoken_languages",
     ]
 
-    for col in to_unnest:
-        df = pd.json_normalize(
-            response,
-            record_path=col,
-            meta=[
-                "adult",
-                "backdrop_path",
-                "budget",
-                "homepage",
-                "id",
-                "imdb_id",
-                "original_language",
-                "original_title",
-                "overview",
-                "popularity",
-                "poster_path",
-                "release_date",
-                "revenue",
-                "runtime",
-                "status",
-                "tagline",
-                "title",
-                "video",
-                "vote_average",
-                "vote_count",
-            ],
-            record_prefix=col + ".",
-            errors="ignore",
-        )
+    df = df.drop(
+        to_unlist,
+        axis=1,
+        inplace=False,
+    )
+
     df = df.add_prefix("m.")
 
-    col_types = {
-        "m.production_countries.iso_3166_1": str,
-        "m.production_countries.name": str,
-        "m.adult": str,
-        "m.backdrop_path": str,
-        "m.budget": int,
-        "m.homepage": str,
-        "m.id": int,
-        "m.imdb_id": str,
-        "m.original_language": str,
-        "m.original_title": str,
-        "m.overview": str,
-        "m.popularity": int,
-        "m.poster_path": str,
-        "m.release_date": str,
-        "m.revenue": int,
-        "m.runtime": int,
-        "m.status": str,
-        "m.tagline": str,
-        "m.title": str,
-        "m.video": str,
-        "m.vote_average": float,
-        "m.vote_count": int,
-    }
-
-    df = df.astype(col_types)
+    # df_unlist = pd.DataFrame()
+    for col in to_unlist:
+        tmp = unlist(response, col, m_id)
+        # if df_unlist.empty:
+        #    df_unlist = tmp
+        #    continue
+        df = df.merge(tmp, how="inner", on="m.id")
 
     return df
 
@@ -278,13 +273,137 @@ def lookup_credits(api_key: str, m_id: int) -> pd.DataFrame():
     return cast_crew
 
 
+def update_lookup_table(
+    api_key: str, parent_folder: str, style: int, lookuptab_path: str = None
+) -> pd.DataFrame:
+    """Creates or updates the lookup table.
+
+    Parameters
+    --------
+    api_key : str
+        TMDB API key
+    parent_folder : str
+        filepath to folder containing all movies
+    style : int
+        parsing style
+    lookuptab_path : str
+        (Optional) path to lookup table
+
+    Returns
+    --------
+    pd.DataFrame
+        updated lookup table
+    """
+    df = import_folder(parent_folder, style)
+
+    if lookuptab_path == None:
+        lookuptab_path = os.getcwd() + "/tmms_lookuptab.csv"
+    if os.path.exists(lookuptab_path):
+        df_stale = pd.read_csv(lookuptab_path, sep=";", encoding="UTF-8")
+        diff = df[~(df["disk.fname"].isin(df_stale["disk.fname"]))]
+        df = pd.concat([df_stale, diff], axis=0)
+        df["tmms.id_auto"] = df["tmms.id_auto"].fillna(-2).astype(int)
+        df.reset_index(drop=True)
+
+    # GET IDs
+
+    auto_ids = []
+    for index, row in tqdm(df.iterrows(), desc="IDs    ", total=len(df["disk.fname"])):
+        if row["tmms.id_man"] != 0:
+            auto_ids.append(row["tmms.id_auto"])
+        elif int(row["tmms.id_auto"]) > 0:
+            auto_ids.append(row["tmms.id_auto"])
+        else:
+            auto_ids.append(
+                lookup_id(api_key, row["disk.title"], str(row["disk.year"]))
+            )
+
+    df["tmms.id_auto"] = auto_ids
+    return df
+
+
+def get_metadata(api_key: str, id_list: list, m: bool, c: bool) -> pd.DataFrame:
+    """Query TMDB for movie metadata or credits for specified ids.
+
+    Parameters
+    --------
+    api_key : str
+        tmdb API key
+    id_list : list
+        list of ids
+    m : bool
+        flag for pulling movie metadata
+    c : bool
+        flag for pulling credits
+
+    Returns
+    --------
+        DataFrame containing metadata and/or credits for supplied
+        id_list
+    """
+    if (m == False and c == False) or not id_list:
+        return pd.DataFrame()
+
+    # GET DETAILS
+    if m:
+        details = pd.DataFrame()
+        for movie_id in tqdm(id_list, desc="Details"):
+            tmp = lookup_details(api_key, movie_id)
+            details = pd.concat([details, tmp], axis=0)
+        details.reset_index(drop=True)
+
+    # GET CREDITS
+    if c:
+        credits = pd.DataFrame()
+        for movie_id in tqdm(id_list, desc="Credits"):
+            tmp = lookup_credits(api_key, movie_id)
+            credits = pd.concat([credits, tmp], axis=0)
+        credits.reset_index(drop=True)
+
+    # merge, sort and ave
+    if m and c:
+        df = details.merge(credits, left_on="m.id", right_on="cc.m_id")
+    elif m:
+        df = details
+    elif c:
+        df = credits
+
+    df = df[sorted(df.columns)]
+    return df
+
+
+def write_to_disk(
+    df: pd.DataFrame,
+    default_name: str,
+    path: str = None,
+):
+    """Write df to path. If path is not specified, it is written
+    to as default_name.csv to the working directory.
+
+    Parameters
+    --------
+    df : pd.DataFrame
+        DataFrame to be written.
+    default_name : str
+        Name to use for writing if no path is supplied.
+    path : str
+        Optional, path to write df to.
+    """
+    if path == None:
+        path = os.getcwd() + f"/{default_name}.csv"
+
+    df.to_csv(path, sep=";", encoding="UTF-8", index=False, decimal=",")
+    print(f"saved {default_name}.csv to {path}")
+
+
 def main(
     api_key: str,
     parent_folder: str,
     style: int,
     m: bool,
     c: bool,
-    output_fpath: str = None,
+    lookuptab_path: str = None,
+    metadata_path: str = None,
 ):
 
     start = datetime.now()
@@ -292,70 +411,23 @@ def main(
     if str_empty(api_key):
         exit("no api key supplied")
 
-    df = import_folder(parent_folder, style)
+    lookup_df = update_lookup_table(api_key, parent_folder, 0, lookuptab_path)
 
-    # API calls for id
-    bar = Bar(
-        "Ids    ",
-        max=len(df.index),
-        suffix="%(index)d / %(max)d  %(percent)d%% (ETA %(eta)ds | %(elapsed_td)s)",
+    write_to_disk(lookup_df, "tmms_lookuptab", lookuptab_path)
+
+    unique_ids = np.where(
+        lookup_df["tmms.id_man"] != 0,
+        lookup_df["tmms.id_man"],
+        lookup_df["tmms.id_auto"],
     )
+    unique_ids = list(dict.fromkeys(unique_ids))
 
-    tmdb_id_auto = []
-    for index, row in df.iterrows():
-        tmdb_id_auto.append(lookup_id(api_key, row["disk.title"], row["disk.year"]))
-        bar.next()
-    df["tmdb_id_auto"] = tmdb_id_auto
-    bar.finish()
-
-    if m is True:
-        # API calls for details
-        bar = Bar(
-            "Details",
-            max=len(df.index),
-            suffix="%(index)d / %(max)d  %(percent)d%% (ETA %(eta)ds | %(elapsed_td)s)",
-        )
-
-        details = pd.DataFrame()
-        for index, row in df.iterrows():
-            details_tmp = lookup_details(api_key, row["tmdb_id_auto"])
-            details = pd.concat([details, details_tmp], axis=0)
-            bar.next()
-        details = details.reset_index(drop=True)
-
-        bar.finish()
-
-    if c is True:
-        # API calls for credits
-        bar = Bar(
-            "Credits",
-            max=len(df.index),
-            suffix="%(index)d / %(max)d  %(percent)d%% (ETA %(eta)ds | %(elapsed_td)s)",
-        )
-
-        cc = pd.DataFrame()
-        for index, row in df.iterrows():
-            cc_tmp = lookup_credits(api_key, row["tmdb_id_auto"])
-            cc = pd.concat([cc, cc_tmp], axis=0)
-            bar.next()
-        cc = cc.reset_index(drop=True)
-
-        bar.finish()
-
-    if m is not False:
-        df = df.merge(details, left_on="tmdb_id_auto", right_on="m.id")
-        df.drop("m.id", axis=1, inplace=True)
-    if c is not False:
-        df = df.merge(cc, left_on="tmdb_id_auto", right_on="cc.m_id")
-        df.drop("cc.m_id", axis=1, inplace=True)
-
-    if output_fpath == None:
-        output_fpath = os.getcwd() + "/tmms_table.csv"
-
-    df.to_csv(output_fpath, sep=";", encoding="UTF-8", index=False, decimal=",")
+    if m or c:
+        metadata_df = get_metadata(api_key, unique_ids, m, c)
+        write_to_disk(metadata_df, "tmms_metadata", metadata_path)
 
     duration = datetime.now() - start
-    print(f"finished in {duration}, saved results to {output_fpath}")
+    print(f"finished in {duration}")
 
 
 if __name__ == "__main__":
@@ -377,23 +449,38 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--output_fpath",
-        dest="output_fpath",
+        "--lookuptab_path",
+        dest="lookuptab_path",
         type=str,
         required=False,
         help="results get written to this file. If nothing is specified,"
-        + "tmms_table.csv gets written to the current working directry.",
+        + "tmms_lookuptab.csv gets written to the current working directry.",
     )
 
     parser.add_argument(
-        "--m", action="store_false", help="set flag for skipping movie detail data"
+        "--metadata_path",
+        dest="metadata_path",
+        type=str,
+        required=False,
+        help="metadata gets written to this file. If nothing is specified,"
+        + "tmms_metadata.csv gets written to the current working directry.",
+    )
+
+    parser.add_argument(
+        "--m", action="store_true", help="set flag for pulling movie detail data"
     )
     parser.add_argument(
-        "--c", action="store_false", help="set flag for skipping credit data"
+        "--c", action="store_true", help="set flag for pulling credit data"
     )
 
     args = parser.parse_args()
 
     main(
-        args.api_key, args.parent_folder, args.style, args.output_fpath, args.m, args.c
+        api_key=args.api_key,
+        parent_folder=args.parent_folder,
+        style=args.style,
+        c=args.c,
+        m=args.m,
+        lookuptab_path=args.lookuptab_path,
+        metadata_path=args.metadata_path,
     )
