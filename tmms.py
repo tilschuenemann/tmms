@@ -12,7 +12,8 @@ import requests
 import os
 
 
-def str_empty(my_string: str):
+def str_empty(my_string: str) -> bool:
+    """Helper to check for empty stirngs"""
     if my_string and my_string.strip():
         return False
     else:
@@ -20,8 +21,9 @@ def str_empty(my_string: str):
 
 
 def import_folder(input_folder: str, style: int) -> pd.DataFrame():
-    """Reads the parent_folders subdirectory names,
+    """Reads the input_folder subdirectory names,
     extracts title, year and subtitles (if available).
+
     If a non-existant parent_folder is supplied or if it's
     empty, an empty dataframe will be returned.
 
@@ -29,7 +31,8 @@ def import_folder(input_folder: str, style: int) -> pd.DataFrame():
     --------
     input_folder : str
         filepath to folder containing all movies
-
+    style : int
+        parsing style
     Returns
     --------
     pd.DataFrame
@@ -300,20 +303,29 @@ def lookup_credits(api_key: str, m_id: int) -> pd.DataFrame():
 
 
 def update_lookup_table(
-    api_key: str, input_folder: str, style: int, output_folder: str = None
+    api_key: str, input_folder: str, style: int, output_folder: str
 ) -> pd.DataFrame:
     """Creates or updates the lookup table.
+
+    If a lookup table exists in the output folder, it's compared
+    to the actual files on disk. The difference gets added to df.
+
+    If a manual or an automatic id exist, they are kept. Missing
+    or new automatic ids are filled in with -2, which get looked
+    up.
+
+    The list of automatic ids overwrites itself.
 
     Parameters
     --------
     api_key : str
         TMDB API key
     input_folder : str
-        filepath to folder containing all movies
+        folder containing all movies
     style : int
         parsing style
     output_folder : str
-        (Optional) path to lookup table
+        folder to write lookup table to
 
     Returns
     --------
@@ -344,9 +356,11 @@ def update_lookup_table(
         if row["tmms.id_man"] != 0:
             auto_ids.append(row["tmms.id_auto"])
             logging.info(f"{fname}: tmms.id_man entered")
+
         elif int(row["tmms.id_auto"]) > 0:
             auto_ids.append(row["tmms.id_auto"])
             logging.info(f"{fname}: tmms.id_auto already exists")
+
         else:
             new_id = lookup_id(api_key, row["disk.title"], str(row["disk.year"]))
             auto_ids.append(new_id)
@@ -361,23 +375,17 @@ def update_lookup_table(
 
 def write_to_disk(
     df: pd.DataFrame,
-    output_path: str = None,
+    output_path: str,
 ):
-    """Write df to path. If path is not specified, it is written
-    to as default_name.csv to the working directory.
+    """Write df to output_path with European settings.
 
     Parameters
     --------
     df : pd.DataFrame
         DataFrame to be written.
-    default_name : str
-        Name to use for writing if no path is supplied.
     output_path : str
         Optional, path to write df to.
     """
-    if output_path == None:
-        output_path = os.getcwd() + f"/{default_name}.csv"
-
     df.to_csv(
         output_path,
         sep=";",
@@ -386,10 +394,24 @@ def write_to_disk(
         decimal=",",
         date_format="%Y-%m-%d",
     )
-    print(f"saved {output_path}")
 
+def unnest(response: dict, mid: int, column: str) -> pd.DataFrame:
+    """Unnests column in specified response and adds mid as identifier.
 
-def unnest(response, mid, column):
+    Parameters
+    -------
+    response : dict
+        JSON response from API
+    mid : int
+        movie id to add as identifier
+    column : str
+        column to unnest
+
+    Returns
+    -------
+    pd.DataFrame
+        unnested DataFrame
+    """
     df = pd.json_normalize(response, record_path=column)
     df["m.id"] = mid
     return df
