@@ -1,5 +1,4 @@
 import pandas as pd
-from pandas import json_normalize
 from tqdm import tqdm
 import numpy as np
 
@@ -20,7 +19,7 @@ def str_empty(my_string: str):
         return True
 
 
-def import_folder(parent_folder: str, style: int) -> pd.DataFrame():
+def import_folder(input_folder: str, style: int) -> pd.DataFrame():
     """Reads the parent_folders subdirectory names,
     extracts title, year and subtitles (if available).
     If a non-existant parent_folder is supplied or if it's
@@ -28,7 +27,7 @@ def import_folder(parent_folder: str, style: int) -> pd.DataFrame():
 
     Parameters
     --------
-    parent_folder : str
+    input_folder : str
         filepath to folder containing all movies
 
     Returns
@@ -37,10 +36,10 @@ def import_folder(parent_folder: str, style: int) -> pd.DataFrame():
 
     """
 
-    if os.path.exists(parent_folder) == False:
+    if os.path.exists(input_folder) == False:
         return pd.DataFrame()
 
-    movies_disk = next(os.walk(parent_folder))[1]
+    movies_disk = next(os.walk(input_folder))[1]
     df = pd.DataFrame(movies_disk)
     df.columns = ["disk.fname"]
 
@@ -126,66 +125,20 @@ def lookup_id(api_key: str, title: str, year: str) -> int():
         return ERROR_ID
 
 
-def lcm_merge(df_list: list(pd.DataFrame())) -> pd.DataFrame():
-    """For a given list of dataframes, the lowest common multiple
-    of their lengths is determined. Every df is copied along its
-    rows until their length matches the LCM.
-    All df are concatenated and returned.
-
-    If a df has no elements or the LCM is zero, an empty df is
-    returned.
-
-    Parameters
-    -------
-    df_list: list(pd.DataFrame())
-        List of dataframes
-
-    Returns
-    -------
-        pd.DataFrame
-    """
-    lengths = []
-    for df in df_list:
-        lengths.append(len(df.index))
-
-    if len(lengths) <= 0:
-        return pd.DataFrame()
-
-    lcm = np.lcm.reduce(lengths)
-    if lcm <= 0:
-        return pd.DataFrame()
-
-    result = pd.DataFrame()
-
-    for datf in df_list:
-        df_tmp = datf.copy()
-        df_tmp = pd.concat([df_tmp] * int(lcm / len(df_tmp.index)))
-        df_tmp.reset_index(drop=True, inplace=True)
-        result = pd.concat([result, df_tmp], axis=1)
-    return result
-
-
-def lookup_details(api_key: str, m_id: int) -> pd.DataFrame:
+def lookup_details(response: dict) -> pd.DataFrame:
     """Queries the TMDB API for movie details for m_id. The
     resulting JSON is flattened and fed into a DataFrame.
 
     Parameters
     --------
-    api_key : str
-        TMDB API key
-    m_id : int
-        TMDB movie id
+    response : dict
+        TMDB API response for movie endpoint
 
     Returns
     --------
     pd.DataFrame
         DataFrame containing m_id metadata
     """
-    if m_id == -1:
-        return pd.DataFrame()
-
-    url = f"https://api.themoviedb.org/3/movie/{m_id}?api_key={api_key}&include_adult=true"
-    response = requests.get(url).json()
 
     df = pd.json_normalize(
         response,
@@ -213,6 +166,7 @@ def lookup_details(api_key: str, m_id: int) -> pd.DataFrame:
         ],
         errors="ignore",
     )
+
     to_unlist = [
         "genres",
         "production_companies",
@@ -227,13 +181,6 @@ def lookup_details(api_key: str, m_id: int) -> pd.DataFrame:
     )
 
     df = df.add_prefix("m.")
-
-    df_list = [df]
-    for col in to_unlist:
-        tmp_df = pd.json_normalize(response, record_path=col, record_prefix=f"m.{col}.")
-        df_list.append(tmp_df)
-
-    df = lcm_merge(df_list)
 
     col_types = {
         "m.adult": bool,
@@ -353,7 +300,7 @@ def lookup_credits(api_key: str, m_id: int) -> pd.DataFrame():
 
 
 def update_lookup_table(
-    api_key: str, parent_folder: str, style: int, lookuptab_path: str = None
+    api_key: str, input_folder: str, style: int, output_folder: str = None
 ) -> pd.DataFrame:
     """Creates or updates the lookup table.
 
@@ -361,11 +308,11 @@ def update_lookup_table(
     --------
     api_key : str
         TMDB API key
-    parent_folder : str
+    input_folder : str
         filepath to folder containing all movies
     style : int
         parsing style
-    lookuptab_path : str
+    output_folder : str
         (Optional) path to lookup table
 
     Returns
@@ -373,15 +320,16 @@ def update_lookup_table(
     pd.DataFrame
         updated lookup table
     """
-    df = import_folder(parent_folder, style)
+    df = import_folder(input_folder, style)
+    lookuptab = output_folder + "/tmms_lookuptab.csv"
 
-    if lookuptab_path == None:
-        lookuptab_path = os.getcwd() + "/tmms_lookuptab.csv"
-        logging.info(f"creating new lookuptable at {lookuptab_path}")
-    if os.path.exists(lookuptab_path):
+    if output_folder == None:
+        output_folder = os.getcwd() + "/tmms_lookuptab.csv"
+        logging.info(f"creating new lookuptable at {output_folder}")
+    if os.path.exists(lookuptab):
         logging.info("lookuptable already exists")
 
-        df_stale = pd.read_csv(lookuptab_path, sep=";", encoding="UTF-8")
+        df_stale = pd.read_csv(lookuptab, sep=";", encoding="UTF-8")
         diff = df[~(df["disk.fname"].isin(df_stale["disk.fname"]))]
         df = pd.concat([df_stale, diff], axis=0)
         df["tmms.id_auto"] = df["tmms.id_auto"].fillna(-2).astype(int)
@@ -411,63 +359,9 @@ def update_lookup_table(
     return df
 
 
-def get_metadata(api_key: str, id_list: list, m: bool, c: bool) -> pd.DataFrame:
-    """Query TMDB for movie metadata or credits for specified ids.
-
-    Parameters
-    --------
-    api_key : str
-        tmdb API key
-    id_list : list
-        list of ids
-    m : bool
-        flag for pulling movie metadata
-    c : bool
-        flag for pulling credits
-
-    Returns
-    --------
-        DataFrame containing metadata and/or credits for supplied
-        id_list
-    """
-    if (m == False and c == False) or not id_list:
-        return pd.DataFrame()
-
-    # GET DETAILS
-    if m:
-        details = pd.DataFrame()
-        for movie_id in tqdm(id_list, desc="Details"):
-            tmp = lookup_details(api_key, movie_id)
-            details = pd.concat([details, tmp], axis=0)
-        details.reset_index(drop=True)
-        details.replace("None", "", inplace=True)
-
-    # GET CREDITS
-    if c:
-        cast_crew = pd.DataFrame()
-        for movie_id in tqdm(id_list, desc="Credits"):
-            tmp = lookup_credits(api_key, movie_id)
-            cast_crew = pd.concat([cast_crew, tmp], axis=0)
-        cast_crew.reset_index(drop=True)
-        cast_crew.replace("nan", "", inplace=True)
-        cast_crew.replace("None", "", inplace=True)
-
-    # merge, sort and ave
-    if m and c:
-        df = details.merge(cast_crew, left_on="m.id", right_on="cc.m.id")
-    elif m:
-        df = details
-    elif c:
-        df = cast_crew
-
-    df = df[sorted(df.columns)]
-    return df
-
-
 def write_to_disk(
     df: pd.DataFrame,
-    default_name: str,
-    path: str = None,
+    output_path: str = None,
 ):
     """Write df to path. If path is not specified, it is written
     to as default_name.csv to the working directory.
@@ -478,48 +372,57 @@ def write_to_disk(
         DataFrame to be written.
     default_name : str
         Name to use for writing if no path is supplied.
-    path : str
+    output_path : str
         Optional, path to write df to.
     """
-    if path == None:
-        path = os.getcwd() + f"/{default_name}.csv"
+    if output_path == None:
+        output_path = os.getcwd() + f"/{default_name}.csv"
 
     df.to_csv(
-        path,
+        output_path,
         sep=";",
         encoding="UTF-8",
         index=False,
         decimal=",",
         date_format="%Y-%m-%d",
     )
-    print(f"saved {default_name}.csv to {path}")
+    print(f"saved {output_path}")
+
+
+def unnest(response, mid, column):
+    df = pd.json_normalize(response, record_path=column)
+    df["m.id"] = mid
+    return df
 
 
 def main(
     api_key: str,
-    parent_folder: str,
+    input_folder: str,
     style: int,
     m: bool,
     c: bool,
-    lookuptab_path: str = None,
-    metadata_path: str = None,
+    output_folder: str,
 ):
+
+    if os.path.isdir(input_folder) == False:
+        exit("input folder doesnt exit or is not a directory")
+    elif os.path.isdir(output_folder) == False:
+        exit("output folder doesnt exit or is not a directory")
 
     logger = logging.getLogger("tmmslogger")
     logging.basicConfig(
-        filename="./tmms-log.log",
+        filename=output_folder + "/tmms-log.log",
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(funcName)s - %(message)s",
     )
 
     logging.info(
         "start parameters:\n"
-        + f"parent_folder: {parent_folder}\n"
+        + f"input_folder: {input_folder}\n"
         + f"style: {style}\n"
         + f"m: {m}\n"
         + f"c: {c}\n"
-        + f"lookuptab_path: {lookuptab_path}\n"
-        + f"metadata_path: {metadata_path}"
+        + f"output_folder: {output_folder}"
     )
 
     start = datetime.now()
@@ -527,9 +430,8 @@ def main(
     if str_empty(api_key):
         exit("no api key supplied")
 
-    lookup_df = update_lookup_table(api_key, parent_folder, 0, lookuptab_path)
-
-    write_to_disk(lookup_df, "tmms_lookuptab", lookuptab_path)
+    lookup_df = update_lookup_table(api_key, input_folder, 0, output_folder)
+    write_to_disk(lookup_df, output_folder + "tmms_lookuptab.csv")
 
     unique_ids = np.where(
         lookup_df["tmms.id_man"] != 0,
@@ -537,10 +439,66 @@ def main(
         lookup_df["tmms.id_auto"],
     )
     unique_ids = list(dict.fromkeys(unique_ids))
+    unique_ids.remove(-1)
 
-    if m or c:
-        metadata_df = get_metadata(api_key, unique_ids, m, c)
-        write_to_disk(metadata_df, "tmms_metadata", metadata_path)
+    details = pd.DataFrame()
+    genres = pd.DataFrame()
+    prod_comp = pd.DataFrame()
+    prod_count = pd.DataFrame()
+    spoken_langs = pd.DataFrame()
+
+    if m:
+        for mid in tqdm(unique_ids, "details"):
+
+            url = f"https://api.themoviedb.org/3/movie/{mid}?api_key={api_key}&include_adult=true"
+            response = requests.get(url).json()
+
+            tmp = lookup_details(response)
+            details = pd.concat([details, tmp], axis=0)
+
+            to_unlist = [
+                "genres",
+                "production_companies",
+                "production_countries",
+                "spoken_languages",
+            ]
+            for col in to_unlist:
+                tmp = unnest(response, mid, col)
+
+                if col == "genres":
+                    genres = pd.concat([genres, tmp], axis=0)
+                elif col == "production_companies":
+                    prod_comp = pd.concat([prod_comp, tmp], axis=0)
+                elif col == "production_countries":
+                    prod_count = pd.concat([prod_count, tmp], axis=0)
+                elif col == "spoken_languages":
+                    spoken_langs = pd.concat([spoken_langs, tmp], axis=0)
+
+        details.replace("None", "", inplace=True)
+
+    if c:
+        for mid in tqdm(unique_ids, "cast and crew"):
+            cast_crew = pd.DataFrame()
+            tmp = lookup_credits(api_key, mid)
+            cast_crew = pd.concat([cast_crew, tmp], axis=0)
+
+        cast_crew.replace("nan", "", inplace=True)
+        cast_crew.replace("None", "", inplace=True)
+
+    if m:
+
+        genres.add_prefix("genres.")
+        prod_comp.add_prefix("production_countries.")
+        prod_count.add_prefix("production_countries.")
+        spoken_langs.add_prefix("spoken_languages.")
+
+        write_to_disk(details, output_folder + "tmms_moviedetails.csv")
+        write_to_disk(genres, output_folder + "tmms_genres.csv")
+        write_to_disk(prod_comp, output_folder + "tmms_production_companies.csv")
+        write_to_disk(prod_count, output_folder + "tmms_production_countries.csv")
+        write_to_disk(spoken_langs, output_folder + "tmms_spoken_languages.csv")
+    if c:
+        write_to_disk(cast_crew, output_folder + "tmms_credits.csv")
 
     duration = datetime.now() - start
     print(f"finished in {duration}")
@@ -550,11 +508,11 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Scrape TMDB metadata")
     parser.add_argument(
-        "--api_key", dest="api_key", type=str, required=True, help="TMDB api key"
+        "--api_key", dest="api_key", type=str, required=True, help="TMDB API key"
     )
     parser.add_argument(
-        "--parent_folder",
-        dest="parent_folder",
+        "--input_folder",
+        dest="input_folder",
         type=str,
         required=True,
         help="folder containing movies",
@@ -565,21 +523,12 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--lookuptab_path",
-        dest="lookuptab_path",
+        "--output_folder",
+        dest="output_folder",
         type=str,
-        required=False,
-        help="results get written to this file. If nothing is specified,"
-        + "tmms_lookuptab.csv gets written to the current working directry.",
-    )
-
-    parser.add_argument(
-        "--metadata_path",
-        dest="metadata_path",
-        type=str,
-        required=False,
-        help="metadata gets written to this file. If nothing is specified,"
-        + "tmms_metadata.csv gets written to the current working directry.",
+        required=True,
+        help="Folder to write results to. If nothing is specified,"
+        + "files get written to the current working directry.",
     )
 
     parser.add_argument(
@@ -593,10 +542,9 @@ if __name__ == "__main__":
 
     main(
         api_key=args.api_key,
-        parent_folder=args.parent_folder,
+        input_folder=args.input_folder,
         style=args.style,
         c=args.c,
         m=args.m,
-        lookuptab_path=args.lookuptab_path,
-        metadata_path=args.metadata_path,
+        output_folder=args.output_folder,
     )
