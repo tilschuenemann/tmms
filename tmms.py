@@ -1,5 +1,4 @@
 import pandas as pd
-from pandas import json_normalize
 from tqdm import tqdm
 import numpy as np
 
