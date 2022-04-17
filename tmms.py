@@ -126,7 +126,24 @@ def lookup_id(api_key: str, title: str, year: str) -> int():
         return ERROR_ID
 
 
-def lcm_merge(df_list: list):
+def lcm_merge(df_list: list(pd.DataFrame())) -> pd.DataFrame():
+    """For a given list of dataframes, the lowest common multiple
+    of their lengths is determined. Every df is copied along its
+    rows until their length matches the LCM.
+    All df are concatenated and returned.
+
+    If a df has no elements or the LCM is zero, an empty df is
+    returned.
+
+    Parameters
+    -------
+    df_list: list(pd.DataFrame())
+        List of dataframes
+
+    Returns
+    -------
+        pd.DataFrame
+    """
     lengths = []
     for df in df_list:
         lengths.append(len(df.index))
