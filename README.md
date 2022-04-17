@@ -57,11 +57,6 @@ m.video
 m.vote_average
 m.vote_count
 ```
-In the APIs JSON response the following columns are arrays of nested objects - these get unlisted, multiplying each record depending on the arrays cardinality:
-* spoken_languages
-* production_companies
-* production_countries
-* genres
 
 **Credits**
 ```
