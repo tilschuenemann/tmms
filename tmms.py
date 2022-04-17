@@ -403,12 +403,17 @@ def main(
     c: bool,
     output_folder: str,
 ):
-
+    # check inputs
+    if str_empty(api_key):
+        exit("no api key supplied")
     if os.path.isdir(input_folder) == False:
         exit("input folder doesnt exit or is not a directory")
     elif os.path.isdir(output_folder) == False:
         exit("output folder doesnt exit or is not a directory")
+    elif style not in range(0, 2):
+        exit("style has to be 0 or 1")
 
+    # setup logging
     logger = logging.getLogger("tmmslogger")
     logging.basicConfig(
         filename=output_folder + "/tmms-log.log",
@@ -427,25 +432,25 @@ def main(
 
     start = datetime.now()
 
-    if str_empty(api_key):
-        exit("no api key supplied")
-
-    lookup_df = update_lookup_table(api_key, input_folder, 0, output_folder)
+    # update or create lookup table
+    lookup_df = update_lookup_table(api_key, input_folder, style, output_folder)
     write_to_disk(lookup_df, output_folder + "tmms_lookuptab.csv")
 
-    unique_ids = np.where(
-        lookup_df["tmms.id_man"] != 0,
-        lookup_df["tmms.id_man"],
-        lookup_df["tmms.id_auto"],
-    )
-    unique_ids = list(dict.fromkeys(unique_ids))
-    unique_ids.remove(-1)
+    # get ids to lookup
+    if m or c:
+        unique_ids = np.where(
+            lookup_df["tmms.id_man"] != 0,
+            lookup_df["tmms.id_man"],
+            lookup_df["tmms.id_auto"],
+        )
+        unique_ids = list(dict.fromkeys(unique_ids))
+        unique_ids.remove(-1)
 
-    details = pd.DataFrame()
-    genres = pd.DataFrame()
-    prod_comp = pd.DataFrame()
-    prod_count = pd.DataFrame()
-    spoken_langs = pd.DataFrame()
+        details = pd.DataFrame()
+        genres = pd.DataFrame()
+        prod_comp = pd.DataFrame()
+        prod_count = pd.DataFrame()
+        spoken_langs = pd.DataFrame()
 
     if m:
         for mid in tqdm(unique_ids, "details"):
@@ -462,6 +467,7 @@ def main(
                 "production_countries",
                 "spoken_languages",
             ]
+
             for col in to_unlist:
                 tmp = unnest(response, mid, col)
 
@@ -475,18 +481,6 @@ def main(
                     spoken_langs = pd.concat([spoken_langs, tmp], axis=0)
 
         details.replace("None", "", inplace=True)
-
-    if c:
-        for mid in tqdm(unique_ids, "cast and crew"):
-            cast_crew = pd.DataFrame()
-            tmp = lookup_credits(api_key, mid)
-            cast_crew = pd.concat([cast_crew, tmp], axis=0)
-
-        cast_crew.replace("nan", "", inplace=True)
-        cast_crew.replace("None", "", inplace=True)
-
-    if m:
-
         genres.add_prefix("genres.")
         prod_comp.add_prefix("production_countries.")
         prod_count.add_prefix("production_countries.")
@@ -497,11 +491,19 @@ def main(
         write_to_disk(prod_comp, output_folder + "tmms_production_companies.csv")
         write_to_disk(prod_count, output_folder + "tmms_production_countries.csv")
         write_to_disk(spoken_langs, output_folder + "tmms_spoken_languages.csv")
+
     if c:
+        for mid in tqdm(unique_ids, "cast and crew"):
+            cast_crew = pd.DataFrame()
+            tmp = lookup_credits(api_key, mid)
+            cast_crew = pd.concat([cast_crew, tmp], axis=0)
+
+        cast_crew.replace("nan", "", inplace=True)
+        cast_crew.replace("None", "", inplace=True)
         write_to_disk(cast_crew, output_folder + "tmms_credits.csv")
 
     duration = datetime.now() - start
-    print(f"finished in {duration}")
+    logger.info(f"finished in {duration}")
 
 
 if __name__ == "__main__":
