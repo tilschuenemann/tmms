@@ -325,7 +325,6 @@ def lookup_credits(api_key: str, m_id: int) -> pd.DataFrame():
     crew["credit.type"] = "crew"
     cast_crew = pd.concat([cast, crew], axis=0)
     cast_crew = cast_crew.add_prefix("cc.")
-    cast_crew.fillna(0, inplace=True)
 
     col_types = {
         "cc.adult": bool,
@@ -441,6 +440,7 @@ def get_metadata(api_key: str, id_list: list, m: bool, c: bool) -> pd.DataFrame:
             tmp = lookup_details(api_key, movie_id)
             details = pd.concat([details, tmp], axis=0)
         details.reset_index(drop=True)
+        details.replace("None", "", inplace=True)
 
     # GET CREDITS
     if c:
@@ -449,6 +449,8 @@ def get_metadata(api_key: str, id_list: list, m: bool, c: bool) -> pd.DataFrame:
             tmp = lookup_credits(api_key, movie_id)
             cast_crew = pd.concat([cast_crew, tmp], axis=0)
         cast_crew.reset_index(drop=True)
+        cast_crew.replace("nan", "", inplace=True)
+        cast_crew.replace("None", "", inplace=True)
 
     # merge, sort and ave
     if m and c:
