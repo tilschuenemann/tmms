@@ -12,18 +12,22 @@ The Matrix (1999) (subs)
 import tmms
 
 tmms.main(api_key = "MY_API_KEY", 
-          parent_folder="/home/til/my_movie_library", 
+          input_folder="/home/til/my_movie_library/", 
           style=0, 
           m=True,
-          c=True)
+          c=True,
+          output_folder="/home/til/tmms/")
 ```
 
-Alternatively the script can be called from the command line
+Alternatively the script can be called from the command line:
 ```bash
 python tmms.py 
     --api_key="MY_API_KEY" 
-    --parent_folder = "/home/til/my_movie_library" 
+    --input_folder="/home/til/my_movie_library/", 
     --style=0
+    --m
+    --c
+    --output_folder="/home/til/tmms/")
 ```
 
 For every subfolder the TMDB API is queried. Incase of multiple results for querying with title and year, the most popular one is kept. If there no results, another query only including the title is sent.
@@ -35,8 +39,6 @@ m.adult
 m.backdrop_path
 m.belongs_to_collection
 m.budget
-m.genres.id
-m.genres.name
 m.homepage
 m.id
 m.imdb_id
@@ -45,18 +47,9 @@ m.original_title
 m.overview
 m.popularity
 m.poster_path
-m.production_companies.id
-m.production_companies.logo_path
-m.production_companies.name
-m.production_companies.origin_country
-m.production_countries.iso_3166_1
-m.production_countries.name
 m.release_date
 m.revenue
 m.runtime
-m.spoken_languages.english_name
-m.spoken_languages.iso_639_1
-m.spoken_languages.name
 m.status
 m.tagline
 m.title
@@ -89,7 +82,37 @@ cc.original_name
 cc.popularity
 cc.profile_path
 ```
-* original name without prefix would be id, which conflicts with id for the respective cast / crew. 
+\* original name without prefix would be id, which conflicts with id for the respective cast / crew. 
 
 ** credit type is a new colum imposed by the script so that cast and crew can be differentiated while appending similar columns.
- 
+
+**Genres**
+```
+genres.id
+genres.name
+genres.m.id
+```
+
+**Production Companies**
+```
+production_companies.id
+production_companies.logo_path
+production_companies.name
+production_companies.origin_country
+production_companies.m.id
+```
+
+**production_countries**
+```
+production_countries.iso_3166_1
+production_countries.name
+production_countries.m.id
+```
+
+**production_countries**
+```
+spoken_languages.english_name
+spoken_languages.iso_639_1
+spoken_languages.name
+spoken_languages.m.id
+```
