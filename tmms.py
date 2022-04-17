@@ -232,7 +232,55 @@ def lookup_details(api_key: str, m_id: int) -> pd.DataFrame:
     for col in to_unlist:
         tmp_df = pd.json_normalize(response, record_path=col, record_prefix=f"m.{col}.")
         df_list.append(tmp_df)
-    return lcm_merge(df_list)
+
+    df = lcm_merge(df_list)
+
+    col_types = {
+        "m.adult": bool,
+        "m.backdrop_path": str,
+        "m.belongs_to_collection.backdrop_path": str,
+        "m.belongs_to_collection.id": "Int64",
+        "m.belongs_to_collection.name": str,
+        "m.belongs_to_collection.poster_path": str,
+        "m.budget": "Int64",
+        "m.genres.id": "Int64",
+        "m.genres.name": str,
+        "m.homepage": str,
+        "m.id": "Int64",
+        "m.imdb_id": str,
+        "m.original_language": str,
+        "m.original_title": str,
+        "m.overview": str,
+        "m.popularity": float,
+        "m.poster_path": str,
+        "m.production_companies.id": "Int64",
+        "m.production_companies.logo_path": str,
+        "m.production_companies.name": str,
+        "m.production_companies.origin_country": str,
+        "m.production_countries.iso_3166_1": str,
+        "m.production_countries.name": str,
+        "m.release_date": str,
+        "m.revenue": "Int64",
+        "m.runtime": "Int64",
+        "m.spoken_languages.english_name": str,
+        "m.spoken_languages.iso_639_1": str,
+        "m.spoken_languages.name": str,
+        "m.status": str,
+        "m.tagline": str,
+        "m.title": str,
+        "m.video": bool,
+        "m.vote_average": float,
+        "m.vote_count": "Int64",
+    }
+
+    for key, value in col_types.items():
+        if key in df.columns:
+            df[key] = df[key].astype({key: value})
+
+    if "m.belongs_to_collection" in df.columns:
+        df.drop("m.belongs_to_collection", inplace=True, axis=1)
+
+    return df
 
 
 def lookup_credits(api_key: str, m_id: int) -> pd.DataFrame():
@@ -281,22 +329,26 @@ def lookup_credits(api_key: str, m_id: int) -> pd.DataFrame():
 
     col_types = {
         "cc.adult": bool,
-        "cc.gender": int,
-        "cc.id": int,
+        "cc.gender": "Int64",
+        "cc.id": "Int64",
         "cc.known_for_department": str,
         "cc.name": str,
         "cc.original_name": str,
         "cc.popularity": float,
         "cc.profile_path": str,
-        "cc.cast_id": int,
+        "cc.cast_id": "Int64",
         "cc.character": str,
         "cc.credit_id": str,
-        "cc.order": int,
-        "cc.m.id": int,
+        "cc.order": "Int64",
+        "cc.m.id": "Int64",
         "cc.credit.type": str,
         "cc.department": str,
         "cc.job": str,
     }
+
+    for key, value in col_types.items():
+        if key in cast_crew.columns:
+            cast_crew[key] = cast_crew[key].astype({key: value})
 
     return cast_crew
 
