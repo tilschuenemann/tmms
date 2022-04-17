@@ -126,12 +126,26 @@ def lookup_id(api_key: str, title: str, year: str) -> int():
         return ERROR_ID
 
 
-def unlist(response: dict, record_path: str, id: int):
-    df = pd.json_normalize(
-        response, record_path=record_path, record_prefix=f"m.{record_path}."
-    )
-    df["m.id"] = id
-    return df
+def lcm_merge(df_list: list):
+    lengths = []
+    for df in df_list:
+        lengths.append(len(df.index))
+
+    if len(lengths) <= 0:
+        return pd.DataFrame()
+
+    lcm = np.lcm.reduce(lengths)
+    if lcm <= 0:
+        return pd.DataFrame()
+
+    result = pd.DataFrame()
+
+    for datf in df_list:
+        df_tmp = datf.copy()
+        df_tmp = pd.concat([df_tmp] * int(lcm / len(df_tmp.index)))
+        df_tmp.reset_index(drop=True, inplace=True)
+        result = pd.concat([result, df_tmp], axis=1)
+    return result
 
 
 def lookup_details(api_key: str, m_id: int) -> pd.DataFrame:
@@ -189,23 +203,19 @@ def lookup_details(api_key: str, m_id: int) -> pd.DataFrame:
         "spoken_languages",
     ]
 
-    df = df.drop(
+    df.drop(
         to_unlist,
         axis=1,
-        inplace=False,
+        inplace=True,
     )
 
     df = df.add_prefix("m.")
 
-    # df_unlist = pd.DataFrame()
+    df_list = [df]
     for col in to_unlist:
-        tmp = unlist(response, col, m_id)
-        # if df_unlist.empty:
-        #    df_unlist = tmp
-        #    continue
-        df = df.merge(tmp, how="inner", on="m.id")
-
-    return df
+        tmp_df = pd.json_normalize(response, record_path=col, record_prefix=f"m.{col}.")
+        df_list.append(tmp_df)
+    return lcm_merge(df_list)
 
 
 def lookup_credits(api_key: str, m_id: int) -> pd.DataFrame():
