@@ -105,22 +105,22 @@ def lookup_id(api_key: str, title: str, year: str = None) -> int:
 
     if year is not None:
         url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&year={year}&include_adult=true"
-    response = requests.get(url).json()
+        response = requests.get(url).json()
 
-    try:
+        try:
             mid = int(response["results"][0]["id"])
             return mid
-    except IndexError:
-            return lookup_id2(api_key, title)
+        except IndexError:
+            return lookup_id(api_key, title)
 
     elif year is None:
         url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&include_adult=true"
-            response = requests.get(url).json()
+        response = requests.get(url).json()
 
-            try:
+        try:
             mid = int(response["results"][0]["id"])
             return mid
-            except IndexError:
+        except IndexError:
             return -1
 
 
@@ -166,17 +166,17 @@ def lookup_details(response: dict) -> pd.DataFrame:
         errors="ignore",
     )
 
-    to_unlist = [
-        "genres",
-        "production_companies",
-        "production_countries",
-        "spoken_languages",
-    ]
-
     df.drop(
-        to_unlist,
+        [
+            "belongs_to_collection",
+            "genres",
+            "production_companies",
+            "production_countries",
+            "spoken_languages",
+        ],
         axis=1,
         inplace=True,
+        errors="ignore",
     )
 
     df = df.add_prefix("m.")
@@ -222,9 +222,6 @@ def lookup_details(response: dict) -> pd.DataFrame:
     for key, value in col_types.items():
         if key in df.columns:
             df[key] = df[key].astype({key: value})
-
-    if "m.belongs_to_collection" in df.columns:
-        df.drop("m.belongs_to_collection", inplace=True, axis=1)
 
     return df
 
@@ -459,7 +456,7 @@ def main(
             lookup_df["tmms.id_auto"],
         )
         unique_ids = list(dict.fromkeys(unique_ids))
-        unique_ids.remove(-1)
+        unique_ids.remove(-1) if -1 in unique_ids else None
 
         details = pd.DataFrame()
         genres = pd.DataFrame()
