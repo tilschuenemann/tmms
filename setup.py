@@ -8,6 +8,7 @@ setup(
     author="Til Schuenemann",
     author_email="",
     license="GNU-GPL3",
-    packages=["tmms", "pandas", "numpy", "tqdm"],
+    packages=["tmms"],
+    install_requires=["pandas", "numpy", "tqdm"],
     zip_safe=False,
 )
