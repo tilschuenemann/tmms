@@ -43,29 +43,24 @@ def import_folder(input_folder: str, style: int) -> pd.DataFrame():
         return pd.DataFrame()
 
     movies_disk = next(os.walk(input_folder))[1]
+    if len(movies_disk) == 0:
+        return pd.DataFrame()
+
     df = pd.DataFrame(movies_disk)
     df.columns = ["disk.fname"]
 
-    if df.empty:
-        return pd.DataFrame()
-
     if style == 0:
-        df["disk.year"] = df["disk.fname"].str.extract(
-            r"\((\d{4})\) \(\w*\)$", expand=False
-        )
-        df["disk.subtitles"] = df["disk.fname"].str.extract(
-            r"\(\d{4}\) \((\w+)\)$", expand=False
-        )
-        df["disk.title"] = df["disk.fname"].str.extract(
-            r"(.*) \(.*\) \(.*\)$", expand=False
+        extract = df["disk.fname"].str.extract(
+            r"(?P<title>^.*) \((?P<year>\d{4})\) \((?P<subtitles>.*)\)$"
         )
     elif style == 1:
-        df["disk.year"] = df["disk.fname"].str.extract(
-            r"(^\d{4})(?= - .+)", expand=False
-        )
-        df["disk.title"] = df["disk.fname"].str.extract(r"^\d{4} - (.+)", expand=False)
-    else:
-        return pd.DataFrame()
+        extract = df["disk.fname"].str.extract(r"^(?P<year>\d{4}) - (?P<title>.*)$")
+
+    extract = extract.add_prefix("disk.")
+    extract = extract.fillna(-1)
+    extract = extract.replace(r"^\s*$", -1, regex=True)
+
+    df = pd.concat([df, extract], axis=1)
 
     df["tmms.id_man"] = 0
     df["tmms.id_auto"] = 0
@@ -423,7 +418,7 @@ def main(
     elif os.path.isdir(output_folder) == False:
         exit("output folder doesnt exit or is not a directory")
     elif style not in range(0, 2):
-        exit("style has to be 0 or 1")
+        exit("style not in range")
 
     # setup logging
     logger = logging.getLogger("tmmslogger")
