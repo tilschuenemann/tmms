@@ -20,9 +20,89 @@ def str_empty(my_string: str) -> bool:
         return True
 
 
-def import_folder(input_folder: str, style: int) -> pd.DataFrame():
-    """Reads the input_folder subdirectory names,
-    extracts title, year and subtitles (if available).
+def guess_convention(item_names: list) -> int:
+    """Takes a list of item names and checks,
+    if they fit one of the defined styles.
+
+    The styles id is then returned.
+
+    A match is returned if every item matches
+    the regex of a style.
+
+    Parameters:
+    -------
+    item_names : list
+        list to be checked against naming conventions
+
+    Returns
+    -------
+    int
+        style id
+    """
+
+    my_style = -1
+
+    styles_for_convention = {0: r"(^.*\s\(\d{4}\)\s\(.*\)$)", 1: r"(^\d{4}\s-\s.*$)"}
+
+    df = pd.DataFrame(item_names, columns=["fnames"])
+
+    for style, regex in styles_for_convention.items():
+        result = df["fnames"].str.extract(regex)
+        match = len(result[result.isnull().any(axis=1)]) == 0
+        if match:
+            my_style = style
+
+    return my_style
+
+
+def generic_id_lookup(item_names: list, style: int = None) -> pd.DataFrame:
+    """
+
+    Parameters
+    -------
+    item_names: list
+        List of movie title strings
+    style: int
+        (Optional) style id
+    Returns
+    pd.DataFrame
+        DataFrame containing items, their extracts according
+        to convention and their TMDB id
+    -------
+    """
+
+    if len(item_names) == 0:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(item_names, columns=["disk.fname"])
+
+    if style == None:
+        style = guess_convention(item_names)
+
+    df = pd.DataFrame(item_names, columns=["disk.fname"])
+    df["tmms.id_man"] = 0
+    df["tmms.id_auto"] = 0
+
+    if style == -1:
+        exit("no style could be guessed, please supply style yourself")
+    if style == 0:
+        extract = df["disk.fname"].str.extract(
+            r"(?P<title>^.*) \((?P<year>\d{4})\) \((?P<subtitles>.*)\)$"
+        )
+    elif style == 1:
+        extract = df["disk.fname"].str.extract(r"^(?P<year>\d{4}) - (?P<title>.*)$")
+
+    extract = extract.add_prefix("disk.")
+    extract = extract.fillna(-1)
+    extract = extract.replace(r"^\s*$", -1, regex=True)
+
+    df = pd.concat([df, extract], axis=1)
+    return df
+
+
+def import_folder(input_folder: str, style: int = None) -> pd.DataFrame():
+    """Passes the contents of the input folder as item_list to
+    generic_id_lookup.
 
     If a non-existant parent_folder is supplied or if it's
     empty, an empty dataframe will be returned.
@@ -43,26 +123,9 @@ def import_folder(input_folder: str, style: int) -> pd.DataFrame():
         return pd.DataFrame()
 
     movies_disk = next(os.walk(input_folder))[1]
-    if len(movies_disk) == 0:
-        return pd.DataFrame()
 
-    df = pd.DataFrame(movies_disk, columns=["disk.fname"])
+    df = generic_id_lookup(movies_disk)
 
-    if style == 0:
-        extract = df["disk.fname"].str.extract(
-            r"(?P<title>^.*) \((?P<year>\d{4})\) \((?P<subtitles>.*)\)$"
-        )
-    elif style == 1:
-        extract = df["disk.fname"].str.extract(r"^(?P<year>\d{4}) - (?P<title>.*)$")
-
-    extract = extract.add_prefix("disk.")
-    extract = extract.fillna(-1)
-    extract = extract.replace(r"^\s*$", -1, regex=True)
-
-    df = pd.concat([df, extract], axis=1)
-
-    df["tmms.id_man"] = 0
-    df["tmms.id_auto"] = 0
     return df
 
 
@@ -118,155 +181,8 @@ def lookup_id(api_key: str, title: str, year: str = None) -> int:
             return -1
 
 
-def lookup_details(response: dict) -> pd.DataFrame:
-    """Queries the TMDB API for movie details for m_id. The
-    resulting JSON is flattened and fed into a DataFrame.
-
-    Parameters
-    --------
-    response : dict
-        TMDB API response for movie endpoint
-
-    Returns
-    --------
-    pd.DataFrame
-        DataFrame containing m_id metadata
-    """
-
-    df = pd.json_normalize(
-        response,
-        errors="ignore",
-    )
-
-    df.drop(
-        [
-            "belongs_to_collection",
-            "genres",
-            "production_companies",
-            "production_countries",
-            "spoken_languages",
-        ],
-        axis=1,
-        inplace=True,
-        errors="ignore",
-    )
-
-    df = df.add_prefix("m.")
-
-    col_types = {
-        "m.adult": bool,
-        "m.backdrop_path": str,
-        "m.belongs_to_collection.backdrop_path": str,
-        "m.belongs_to_collection.id": "Int64",
-        "m.belongs_to_collection.name": str,
-        "m.belongs_to_collection.poster_path": str,
-        "m.budget": "Int64",
-        "m.genres.id": "Int64",
-        "m.genres.name": str,
-        "m.homepage": str,
-        "m.id": "Int64",
-        "m.imdb_id": str,
-        "m.original_language": str,
-        "m.original_title": str,
-        "m.overview": str,
-        "m.popularity": float,
-        "m.poster_path": str,
-        "m.production_companies.id": "Int64",
-        "m.production_companies.logo_path": str,
-        "m.production_companies.name": str,
-        "m.production_companies.origin_country": str,
-        "m.production_countries.iso_3166_1": str,
-        "m.production_countries.name": str,
-        "m.release_date": str,
-        "m.revenue": "Int64",
-        "m.runtime": "Int64",
-        "m.spoken_languages.english_name": str,
-        "m.spoken_languages.iso_639_1": str,
-        "m.spoken_languages.name": str,
-        "m.status": str,
-        "m.tagline": str,
-        "m.title": str,
-        "m.video": bool,
-        "m.vote_average": float,
-        "m.vote_count": "Int64",
-    }
-
-    for key, value in col_types.items():
-        if key in df.columns:
-            df[key] = df[key].astype({key: value})
-
-    return df
-
-
-def lookup_credits(api_key: str, m_id: int) -> pd.DataFrame():
-    """Queries the TMDB API for movie cast and crew for m_id. The
-    resulting JSON is flattened and fed into a DataFrame.
-
-    Parameters
-    --------
-    api_key : str
-        TMDB API key
-    m_id : int
-        TMDB movie id
-
-    Returns
-    --------
-    pd.DataFrame
-        DataFrame containing m_id cast and crew
-    """
-
-    url = f"https://api.themoviedb.org/3/movie/{m_id}/credits?api_key={api_key}"
-    response = requests.get(url).json()
-
-    response["m.id"] = response.pop("id")
-
-    cast = pd.json_normalize(
-        response,
-        record_path="cast",
-        meta="m.id",
-        errors="ignore",
-    )
-
-    crew = pd.json_normalize(
-        response,
-        record_path="crew",
-        meta="m.id",
-        errors="ignore",
-    )
-
-    cast["credit.type"] = "cast"
-    crew["credit.type"] = "crew"
-    cast_crew = pd.concat([cast, crew], axis=0)
-    cast_crew = cast_crew.add_prefix("cc.")
-
-    col_types = {
-        "cc.adult": bool,
-        "cc.gender": "Int64",
-        "cc.id": "Int64",
-        "cc.known_for_department": str,
-        "cc.name": str,
-        "cc.original_name": str,
-        "cc.popularity": float,
-        "cc.profile_path": str,
-        "cc.cast_id": "Int64",
-        "cc.character": str,
-        "cc.credit_id": str,
-        "cc.order": "Int64",
-        "cc.m.id": "Int64",
-        "cc.credit.type": str,
-        "cc.department": str,
-        "cc.job": str,
-    }
-
-    for key, value in col_types.items():
-        if key in cast_crew.columns:
-            cast_crew[key] = cast_crew[key].astype({key: value})
-
-    return cast_crew
-
-
 def update_lookup_table(
-    api_key: str, input_folder: str, style: int, output_folder: str
+    api_key: str, input_folder: str, output_folder: str, style: int = None
 ) -> pd.DataFrame:
     """Creates or updates the lookup table.
 
@@ -333,6 +249,127 @@ def update_lookup_table(
     return df
 
 
+def get_credits(api_key: str, id_list: list):
+    cast_crew = pd.DataFrame()
+
+    for mid in tqdm(id_list, "Credits"):
+
+        url = f"https://api.themoviedb.org/3/movie/{mid}/credits?api_key={api_key}"
+        response = requests.get(url).json()
+
+        response["m.id"] = response.pop("id")
+
+        cast = pd.json_normalize(
+            response,
+            record_path="cast",
+            meta="m.id",
+            errors="ignore",
+        )
+
+        crew = pd.json_normalize(
+            response,
+            record_path="crew",
+            meta="m.id",
+            errors="ignore",
+        )
+
+        cast["credit.type"] = "cast"
+        crew["credit.type"] = "crew"
+        tmp = pd.concat([cast, crew], axis=0)
+        cast_crew = pd.concat([cast_crew, tmp], axis=0)
+
+    cast_crew = cast_crew.add_prefix("cc.")
+    cast_crew.replace("nan", "", inplace=True)
+    cast_crew.replace("None", "", inplace=True)
+
+    col_types = {
+        "cc.adult": bool,
+        "cc.gender": "Int64",
+        "cc.id": "Int64",
+        "cc.known_for_department": str,
+        "cc.name": str,
+        "cc.original_name": str,
+        "cc.popularity": float,
+        "cc.profile_path": str,
+        "cc.cast_id": "Int64",
+        "cc.character": str,
+        "cc.credit_id": str,
+        "cc.order": "Int64",
+        "cc.m.id": "Int64",
+        "cc.credit.type": str,
+        "cc.department": str,
+        "cc.job": str,
+    }
+
+    for key, value in col_types.items():
+        if key in cast_crew.columns:
+            cast_crew[key] = cast_crew[key].astype({key: value})
+
+    return cast_crew
+
+
+def get_details(api_key: str, id_list: list):
+    details = pd.DataFrame()
+    genres = pd.DataFrame()
+    prod_comp = pd.DataFrame()
+    prod_count = pd.DataFrame()
+    spoken_langs = pd.DataFrame()
+
+    to_unlist = [
+        "genres",
+        "production_companies",
+        "production_countries",
+        "spoken_languages",
+    ]
+
+    for mid in tqdm(id_list, "Details"):
+
+        url = f"https://api.themoviedb.org/3/movie/{mid}?api_key={api_key}&include_adult=true"
+        response = requests.get(url).json()
+
+        tmp = pd.json_normalize(
+            response,
+            errors="ignore",
+        )
+
+        tmp.drop(
+            [
+                "belongs_to_collection",
+                "genres",
+                "production_companies",
+                "production_countries",
+                "spoken_languages",
+            ],
+            axis=1,
+            inplace=True,
+            errors="ignore",
+        )
+
+        details = pd.concat([details, tmp], axis=0)
+
+        for col in to_unlist:
+            tmp = pd.json_normalize(response, record_path=col)
+            tmp["m.id"] = mid
+
+            if col == "genres":
+                genres = pd.concat([genres, tmp], axis=0)
+            elif col == "production_companies":
+                prod_comp = pd.concat([prod_comp, tmp], axis=0)
+            elif col == "production_countries":
+                prod_count = pd.concat([prod_count, tmp], axis=0)
+            elif col == "spoken_languages":
+                spoken_langs = pd.concat([spoken_langs, tmp], axis=0)
+
+    details.replace("None", "", inplace=True)
+
+    genres = genres.add_prefix("genres.")
+    prod_comp = prod_comp.add_prefix("production_countries.")
+    prod_count = prod_count.add_prefix("production_countries.")
+    spoken_langs = spoken_langs.add_prefix("spoken_languages.")
+    details = details = details.add_prefix("m.")
+    return details, genres, prod_comp, prod_count, spoken_langs
+
+
 def write_to_disk(
     df: pd.DataFrame,
     output_path: str,
@@ -357,35 +394,13 @@ def write_to_disk(
     logging.info(f"saved {output_path}")
 
 
-def unnest(response: dict, mid: int, column: str) -> pd.DataFrame:
-    """Unnests column in specified response and adds mid as identifier.
-
-    Parameters
-    -------
-    response : dict
-        JSON response from API
-    mid : int
-        movie id to add as identifier
-    column : str
-        column to unnest
-
-    Returns
-    -------
-    pd.DataFrame
-        unnested DataFrame
-    """
-    df = pd.json_normalize(response, record_path=column)
-    df["m.id"] = mid
-    return df
-
-
 def main(
     api_key: str,
     input_folder: str,
-    style: int,
     m: bool,
     c: bool,
     output_folder: str,
+    style: int = None,
 ):
     # check inputs
     if str_empty(api_key):
@@ -394,7 +409,7 @@ def main(
         exit("input folder doesnt exit or is not a directory")
     elif os.path.isdir(output_folder) == False:
         exit("output folder doesnt exit or is not a directory")
-    elif style not in range(0, 2):
+    elif style is not None and style not in range(0, 2):
         exit("style not in range")
 
     # setup logging
@@ -417,7 +432,7 @@ def main(
     start = datetime.now()
 
     # update or create lookup table
-    lookup_df = update_lookup_table(api_key, input_folder, style, output_folder)
+    lookup_df = update_lookup_table(api_key, input_folder, output_folder, style)
     write_to_disk(lookup_df, output_folder + "tmms_lookuptab.csv")
 
     # get ids to lookup
@@ -431,44 +446,9 @@ def main(
         unique_ids.remove(-1) if -1 in unique_ids else None
 
     if m:
-        details = pd.DataFrame()
-        genres = pd.DataFrame()
-        prod_comp = pd.DataFrame()
-        prod_count = pd.DataFrame()
-        spoken_langs = pd.DataFrame()
-
-        for mid in tqdm(unique_ids, "Details"):
-
-            url = f"https://api.themoviedb.org/3/movie/{mid}?api_key={api_key}&include_adult=true"
-            response = requests.get(url).json()
-
-            tmp = lookup_details(response)
-            details = pd.concat([details, tmp], axis=0)
-
-            to_unlist = [
-                "genres",
-                "production_companies",
-                "production_countries",
-                "spoken_languages",
-            ]
-
-            for col in to_unlist:
-                tmp = unnest(response, mid, col)
-
-                if col == "genres":
-                    genres = pd.concat([genres, tmp], axis=0)
-                elif col == "production_companies":
-                    prod_comp = pd.concat([prod_comp, tmp], axis=0)
-                elif col == "production_countries":
-                    prod_count = pd.concat([prod_count, tmp], axis=0)
-                elif col == "spoken_languages":
-                    spoken_langs = pd.concat([spoken_langs, tmp], axis=0)
-
-        details.replace("None", "", inplace=True)
-        genres.add_prefix("genres.")
-        prod_comp.add_prefix("production_countries.")
-        prod_count.add_prefix("production_countries.")
-        spoken_langs.add_prefix("spoken_languages.")
+        details, genres, prod_comp, prod_count, spoken_langs = get_details(
+            api_key, unique_ids
+        )
 
         write_to_disk(details, output_folder + "tmms_moviedetails.csv")
         write_to_disk(genres, output_folder + "tmms_genres.csv")
@@ -477,14 +457,7 @@ def main(
         write_to_disk(spoken_langs, output_folder + "tmms_spoken_languages.csv")
 
     if c:
-        cast_crew = pd.DataFrame()
-
-        for mid in tqdm(unique_ids, "Credits"):
-            tmp = lookup_credits(api_key, mid)
-            cast_crew = pd.concat([cast_crew, tmp], axis=0)
-
-        cast_crew.replace("nan", "", inplace=True)
-        cast_crew.replace("None", "", inplace=True)
+        cast_crew = get_credits(api_key, unique_ids)
         write_to_disk(cast_crew, output_folder + "tmms_credits.csv")
 
     duration = datetime.now() - start
@@ -506,7 +479,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--style", dest="style", type=int, required=True, help="parsing style"
+        "--style", dest="style", type=int, required=False, help="parsing style"
     )
 
     parser.add_argument(
