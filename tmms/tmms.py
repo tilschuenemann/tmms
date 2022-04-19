@@ -13,7 +13,7 @@ import os
 
 
 def str_empty(my_string: str) -> bool:
-    """Helper to check for empty stirngs"""
+    """Helper to check for empty strings"""
     if my_string and my_string.strip():
         return False
     else:
@@ -46,8 +46,7 @@ def import_folder(input_folder: str, style: int) -> pd.DataFrame():
     if len(movies_disk) == 0:
         return pd.DataFrame()
 
-    df = pd.DataFrame(movies_disk)
-    df.columns = ["disk.fname"]
+    df = pd.DataFrame(movies_disk, columns=["disk.fname"])
 
     if style == 0:
         extract = df["disk.fname"].str.extract(
@@ -95,7 +94,7 @@ def lookup_id(api_key: str, title: str, year: str = None) -> int:
         TMDB id
 
     """
-    if str_empty(title):
+    if str_empty(api_key) or str_empty(title):
         return -1
 
     if year is not None:
@@ -136,28 +135,6 @@ def lookup_details(response: dict) -> pd.DataFrame:
 
     df = pd.json_normalize(
         response,
-        meta=[
-            "adult",
-            "backdrop_path",
-            "budget",
-            "homepage",
-            "id",
-            "imdb_id",
-            "original_language",
-            "original_title",
-            "overview",
-            "popularity",
-            "poster_path",
-            "release_date",
-            "revenue",
-            "runtime",
-            "status",
-            "tagline",
-            "title",
-            "video",
-            "vote_average",
-            "vote_count",
-        ],
         errors="ignore",
     )
 
@@ -453,13 +430,13 @@ def main(
         unique_ids = list(dict.fromkeys(unique_ids))
         unique_ids.remove(-1) if -1 in unique_ids else None
 
+    if m:
         details = pd.DataFrame()
         genres = pd.DataFrame()
         prod_comp = pd.DataFrame()
         prod_count = pd.DataFrame()
         spoken_langs = pd.DataFrame()
 
-    if m:
         for mid in tqdm(unique_ids, "Details"):
 
             url = f"https://api.themoviedb.org/3/movie/{mid}?api_key={api_key}&include_adult=true"
@@ -500,8 +477,9 @@ def main(
         write_to_disk(spoken_langs, output_folder + "tmms_spoken_languages.csv")
 
     if c:
+        cast_crew = pd.DataFrame()
+
         for mid in tqdm(unique_ids, "Credits"):
-            cast_crew = pd.DataFrame()
             tmp = lookup_credits(api_key, mid)
             cast_crew = pd.concat([cast_crew, tmp], axis=0)
 
