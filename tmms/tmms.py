@@ -249,7 +249,7 @@ def update_lookup_table(
     return df
 
 
-def get_credits(api_key: str, id_list: list):
+def get_credits(api_key: str, id_list: list) -> pd.DataFrame:
     cast_crew = pd.DataFrame()
 
     for mid in tqdm(id_list, "Credits"):
@@ -279,23 +279,21 @@ def get_credits(api_key: str, id_list: list):
         cast_crew = pd.concat([cast_crew, tmp], axis=0)
 
     cast_crew = cast_crew.add_prefix("cc.")
-    cast_crew.replace("nan", "", inplace=True)
-    cast_crew.replace("None", "", inplace=True)
 
     col_types = {
         "cc.adult": bool,
-        "cc.gender": "Int64",
-        "cc.id": "Int64",
+        "cc.gender": int,
+        "cc.id": int,
         "cc.known_for_department": str,
         "cc.name": str,
         "cc.original_name": str,
         "cc.popularity": float,
         "cc.profile_path": str,
-        "cc.cast_id": "Int64",
+        "cc.cast_id": float,
         "cc.character": str,
         "cc.credit_id": str,
-        "cc.order": "Int64",
-        "cc.m.id": "Int64",
+        "cc.order": float,
+        "cc.m.id": int,
         "cc.credit.type": str,
         "cc.department": str,
         "cc.job": str,
@@ -305,10 +303,22 @@ def get_credits(api_key: str, id_list: list):
         if key in cast_crew.columns:
             cast_crew[key] = cast_crew[key].astype({key: value})
 
+    cast_crew.replace("nan", None, inplace=True)
+    cast_crew.replace("None", None, inplace=True)
+
     return cast_crew
 
 
-def get_details(api_key: str, id_list: list):
+def get_details(
+    api_key: str, id_list: list
+) -> (
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+):
     details = pd.DataFrame()
     genres = pd.DataFrame()
     prod_comp = pd.DataFrame()
@@ -360,13 +370,50 @@ def get_details(api_key: str, id_list: list):
             elif col == "spoken_languages":
                 spoken_langs = pd.concat([spoken_langs, tmp], axis=0)
 
-    details.replace("None", "", inplace=True)
-
+    genres = genres.astype({"id": int, "name": str, "m.id": int})
     genres = genres.add_prefix("genres.")
-    prod_comp = prod_comp.add_prefix("production_countries.")
+
+    prod_comp = prod_comp.astype(
+        {"id": int, "logo_path": str, "name": str, "origin_country": str, "m.id": int}
+    )
+    prod_comp = prod_comp.add_prefix("production_companies.")
+    prod_comp.replace("None", "", inplace=True)
+
+    prod_count = prod_count.astype({"iso_3166_1": str, "name": str, "m.id": int})
     prod_count = prod_count.add_prefix("production_countries.")
+
+    spoken_langs = spoken_langs.astype(
+        {"english_name": str, "iso_639_1": str, "name": str, "m.id": int}
+    )
     spoken_langs = spoken_langs.add_prefix("spoken_languages.")
+
+    details = details.astype(
+        {
+            "adult": bool,
+            "backdrop_path": str,
+            "budget": int,
+            "homepage": str,
+            "id": int,
+            "imdb_id": str,
+            "original_language": str,
+            "original_title": str,
+            "overview": str,
+            "popularity": float,
+            "poster_path": str,
+            "release_date": str,
+            "revenue": int,
+            "runtime": int,
+            "status": str,
+            "tagline": str,
+            "title": str,
+            "video": bool,
+            "vote_average": float,
+            "vote_count": int,
+        }
+    )
+    details.replace("None", "", inplace=True)
     details = details = details.add_prefix("m.")
+
     return details, genres, prod_comp, prod_count, spoken_langs
 
 
