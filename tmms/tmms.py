@@ -5,14 +5,12 @@ import numpy as np
 
 import argparse
 from datetime import datetime
-import json
 import logging
-import re
 import requests
 import os
 
 
-def str_empty(my_string: str) -> bool:
+def _str_empty(my_string: str) -> bool:
     """Helper to check for empty strings"""
     if my_string and my_string.strip():
         return False
@@ -20,7 +18,7 @@ def str_empty(my_string: str) -> bool:
         return True
 
 
-def guess_convention(item_names: list) -> int:
+def _guess_convention(item_names: list) -> int:
     """Takes a list of item names and checks,
     if they fit one of the defined styles.
 
@@ -65,10 +63,10 @@ def generic_id_lookup(item_names: list, style: int = None) -> pd.DataFrame:
     style: int
         (Optional) style id
     Returns
+    -------
     pd.DataFrame
         DataFrame containing items, their extracts according
         to convention and their TMDB id
-    -------
     """
 
     if len(item_names) == 0:
@@ -76,8 +74,8 @@ def generic_id_lookup(item_names: list, style: int = None) -> pd.DataFrame:
 
     df = pd.DataFrame(item_names, columns=["disk.fname"])
 
-    if style == None:
-        style = guess_convention(item_names)
+    if style is None:
+        style = _guess_convention(item_names)
 
     df = pd.DataFrame(item_names, columns=["disk.fname"])
     df["tmms.id_man"] = 0
@@ -119,7 +117,7 @@ def import_folder(input_folder: str, style: int = None) -> pd.DataFrame():
 
     """
 
-    if os.path.exists(input_folder) == False:
+    if os.path.exists(input_folder) is False:
         return pd.DataFrame()
 
     movies_disk = next(os.walk(input_folder))[1]
@@ -157,7 +155,7 @@ def lookup_id(api_key: str, title: str, year: str = None) -> int:
         TMDB id
 
     """
-    if str_empty(api_key) or str_empty(title):
+    if _str_empty(api_key) or _str_empty(title):
         return -1
 
     if year is not None:
@@ -181,7 +179,7 @@ def lookup_id(api_key: str, title: str, year: str = None) -> int:
             return -1
 
 
-def update_lookup_table(
+def _update_lookup_table(
     api_key: str, input_folder: str, output_folder: str, style: int = None
 ) -> pd.DataFrame:
     """Creates or updates the lookup table.
@@ -201,10 +199,10 @@ def update_lookup_table(
         TMDB API key
     input_folder : str
         folder containing all movies
-    style : int
-        parsing style
     output_folder : str
         folder to write lookup table to
+    style : int
+        parsing style
 
     Returns
     --------
@@ -250,6 +248,18 @@ def update_lookup_table(
 
 
 def get_credits(api_key: str, id_list: list) -> pd.DataFrame:
+    """
+    Parameters
+    api_key: str
+        TMDB API key
+    id_list: list
+        list of TMDB ids
+
+    Returns
+    -------
+    pd.DataFrame
+        credits
+    """
     cast_crew = pd.DataFrame()
 
     for mid in tqdm(id_list, "Credits"):
@@ -319,6 +329,27 @@ def get_details(
     pd.DataFrame,
     pd.DataFrame,
 ):
+    """
+    Parameters
+    -------
+    api_key: str
+        TMBD API key
+    id_list: list
+        list of TMDB ids
+
+    Returns
+    -------
+    pd.DataFrame
+        movie details
+    pd.DataFrame
+        genres
+    pd.DataFrame
+        production companies
+    pd.DataFrame
+        production countries
+    pd.DataFrame
+        spoken languages
+    """
     details = pd.DataFrame()
     genres = pd.DataFrame()
     prod_comp = pd.DataFrame()
@@ -417,7 +448,7 @@ def get_details(
     return details, genres, prod_comp, prod_count, spoken_langs
 
 
-def write_to_disk(
+def _write_to_disk(
     df: pd.DataFrame,
     output_path: str,
 ):
@@ -444,17 +475,17 @@ def write_to_disk(
 def main(
     api_key: str,
     input_folder: str,
+    output_folder: str,
     m: bool,
     c: bool,
-    output_folder: str,
     style: int = None,
 ):
     # check inputs
-    if str_empty(api_key):
+    if _str_empty(api_key):
         exit("no api key supplied")
-    if os.path.isdir(input_folder) == False:
+    if os.path.isdir(input_folder) is False:
         exit("input folder doesnt exit or is not a directory")
-    elif os.path.isdir(output_folder) == False:
+    elif os.path.isdir(output_folder) is False:
         exit("output folder doesnt exit or is not a directory")
     elif style is not None and style not in range(0, 2):
         exit("style not in range")
@@ -479,8 +510,8 @@ def main(
     start = datetime.now()
 
     # update or create lookup table
-    lookup_df = update_lookup_table(api_key, input_folder, output_folder, style)
-    write_to_disk(lookup_df, output_folder + "tmms_lookuptab.csv")
+    lookup_df = _update_lookup_table(api_key, input_folder, output_folder, style)
+    _write_to_disk(lookup_df, output_folder + "tmms_lookuptab.csv")
 
     # get ids to lookup
     if m or c:
@@ -497,15 +528,15 @@ def main(
             api_key, unique_ids
         )
 
-        write_to_disk(details, output_folder + "tmms_moviedetails.csv")
-        write_to_disk(genres, output_folder + "tmms_genres.csv")
-        write_to_disk(prod_comp, output_folder + "tmms_production_companies.csv")
-        write_to_disk(prod_count, output_folder + "tmms_production_countries.csv")
-        write_to_disk(spoken_langs, output_folder + "tmms_spoken_languages.csv")
+        _write_to_disk(details, output_folder + "tmms_moviedetails.csv")
+        _write_to_disk(genres, output_folder + "tmms_genres.csv")
+        _write_to_disk(prod_comp, output_folder + "tmms_production_companies.csv")
+        _write_to_disk(prod_count, output_folder + "tmms_production_countries.csv")
+        _write_to_disk(spoken_langs, output_folder + "tmms_spoken_languages.csv")
 
     if c:
         cast_crew = get_credits(api_key, unique_ids)
-        write_to_disk(cast_crew, output_folder + "tmms_credits.csv")
+        _write_to_disk(cast_crew, output_folder + "tmms_credits.csv")
 
     duration = datetime.now() - start
     logger.info(f"finished in {duration}")
@@ -526,10 +557,6 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--style", dest="style", type=int, required=False, help="parsing style"
-    )
-
-    parser.add_argument(
         "--output_folder",
         dest="output_folder",
         type=str,
@@ -543,6 +570,10 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--c", action="store_true", help="set flag for pulling credit data"
+    )
+
+    parser.add_argument(
+        "--style", dest="style", type=int, required=False, help="parsing style"
     )
 
     args = parser.parse_args()
