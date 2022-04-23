@@ -1,12 +1,12 @@
-import pandas as pd
-from tqdm import tqdm
+import pandas as pd  # type: ignore
+from tqdm import tqdm  # type: ignore
 import numpy as np
 
 
 import argparse
 from datetime import datetime
 import logging
-import requests
+import requests  # type: ignore
 import os
 
 
@@ -18,7 +18,7 @@ def _str_empty(my_string: str) -> bool:
         return True
 
 
-def _guess_convention(item_names: list) -> int:
+def _guess_convention(item_names: list[str]) -> int:
     """Takes a list of item names and checks,
     if they fit one of the defined styles.
 
@@ -53,7 +53,7 @@ def _guess_convention(item_names: list) -> int:
     return my_style
 
 
-def generic_id_lookup(item_names: list, style: int = None) -> pd.DataFrame:
+def generic_id_lookup(item_names: list[str], style: int = -1) -> pd.DataFrame:
     """
 
     Parameters
@@ -74,7 +74,7 @@ def generic_id_lookup(item_names: list, style: int = None) -> pd.DataFrame:
 
     df = pd.DataFrame(item_names, columns=["disk.fname"])
 
-    if style is None:
+    if style == -1:
         style = _guess_convention(item_names)
 
     df = pd.DataFrame(item_names, columns=["disk.fname"])
@@ -98,7 +98,7 @@ def generic_id_lookup(item_names: list, style: int = None) -> pd.DataFrame:
     return df
 
 
-def import_folder(input_folder: str, style: int = None) -> pd.DataFrame():
+def import_folder(input_folder: str, style: int = -1) -> pd.DataFrame:
     """Passes the contents of the input folder as item_list to
     generic_id_lookup.
 
@@ -127,7 +127,7 @@ def import_folder(input_folder: str, style: int = None) -> pd.DataFrame():
     return df
 
 
-def lookup_id(api_key: str, title: str, year: str = None) -> int:
+def lookup_id(api_key: str, title: str, year: str = "") -> int:
     """Creates a search get request for TMDB API.
 
     Searches for combination of title and year first -
@@ -158,7 +158,7 @@ def lookup_id(api_key: str, title: str, year: str = None) -> int:
     if _str_empty(api_key) or _str_empty(title):
         return -1
 
-    if year is not None:
+    if _str_empty(year) is False:
         url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&year={year}&include_adult=true"
         response = requests.get(url).json()
 
@@ -168,7 +168,7 @@ def lookup_id(api_key: str, title: str, year: str = None) -> int:
         except IndexError:
             return lookup_id(api_key, title)
 
-    elif year is None:
+    else:
         url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&include_adult=true"
         response = requests.get(url).json()
 
@@ -180,7 +180,7 @@ def lookup_id(api_key: str, title: str, year: str = None) -> int:
 
 
 def _update_lookup_table(
-    api_key: str, input_folder: str, output_folder: str, style: int = None
+    api_key: str, input_folder: str, output_folder: str, style: int = -1
 ) -> pd.DataFrame:
     """Creates or updates the lookup table.
 
@@ -247,7 +247,7 @@ def _update_lookup_table(
     return df
 
 
-def get_credits(api_key: str, id_list: list) -> pd.DataFrame:
+def get_credits(api_key: str, id_list: list[int]) -> pd.DataFrame:
     """
     Parameters
     api_key: str
@@ -320,15 +320,8 @@ def get_credits(api_key: str, id_list: list) -> pd.DataFrame:
 
 
 def get_details(
-    api_key: str, id_list: list
-) -> (
-    pd.DataFrame,
-    pd.DataFrame,
-    pd.DataFrame,
-    pd.DataFrame,
-    pd.DataFrame,
-    pd.DataFrame,
-):
+    api_key: str, id_list: list[int]
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Parameters
     -------
@@ -478,7 +471,7 @@ def main(
     output_folder: str,
     m: bool,
     c: bool,
-    style: int = None,
+    style: int = -1,
 ):
     # check inputs
     if _str_empty(api_key):
@@ -515,11 +508,14 @@ def main(
 
     # get ids to lookup
     if m or c:
-        unique_ids = np.where(
-            lookup_df["tmms.id_man"] != 0,
-            lookup_df["tmms.id_man"],
-            lookup_df["tmms.id_auto"],
+        unique_ids: list[int] = np.ndarray.tolist(
+            np.where(
+                lookup_df["tmms.id_man"] != 0,
+                lookup_df["tmms.id_man"],
+                lookup_df["tmms.id_auto"],
+            )
         )
+
         unique_ids = list(dict.fromkeys(unique_ids))
         unique_ids.remove(-1) if -1 in unique_ids else None
 
