@@ -1,5 +1,8 @@
 # :movie_camera: TMDB Movie Metadata Scraper
 
+
+![Tests](https://github.com/tilschuenemann/tmms/actions/workflows/tests.yml/badge.svg)
+
 This program creates a CSV with movie metadata from the TMDB for every folder inside the parent folder.
 
 The supported naming convention is "movie title (4-digit year) (word)"
