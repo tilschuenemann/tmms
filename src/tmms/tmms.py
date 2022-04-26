@@ -40,7 +40,11 @@ def _guess_convention(item_names: list[str]) -> int:
 
     my_style = -1
 
-    styles_for_convention = {0: r"(^.*\s\(\d{4}\)\s\(.*\)$)", 1: r"(^\d{4}\s-\s.*$)"}
+    styles_for_convention = {
+        0: r"(^.*\s\(\d{4}\)\s\(.*\)$)",
+        1: r"(^\d{4}\s-\s.*$)",
+        2: r"(.*)",
+    }
 
     df = pd.DataFrame(item_names, columns=["fnames"])
 
@@ -122,7 +126,7 @@ def import_folder(input_folder: str, style: int = -1) -> pd.DataFrame:
 
     movies_disk = next(os.walk(input_folder))[1]
 
-    df = generic_id_lookup(movies_disk)
+    df = generic_id_lookup(movies_disk, style)
 
     return df
 
