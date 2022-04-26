@@ -93,6 +93,8 @@ def generic_id_lookup(item_names: list[str], style: int = -1) -> pd.DataFrame:
         )
     elif style == 1:
         extract = df["disk.fname"].str.extract(r"^(?P<year>\d{4}) - (?P<title>.*)$")
+    elif style == 2:
+        extract = df["disk.fname"].str.extract(r"^(?P<title>.*)$")
 
     extract = extract.add_prefix("disk.")
     extract = extract.fillna(-1)
@@ -131,7 +133,7 @@ def import_folder(input_folder: str, style: int = -1) -> pd.DataFrame:
     return df
 
 
-def lookup_id(api_key: str, title: str, year: str = "") -> int:
+def lookup_id(api_key: str, strict: bool, title: str, year: str = "") -> int:
     """Creates a search get request for TMDB API.
 
     Searches for combination of title and year first -
@@ -148,6 +150,8 @@ def lookup_id(api_key: str, title: str, year: str = "") -> int:
     -------
     api_key : str
         TMDB API key
+    strict : bool
+        if strict==False, another lookup without the year will be performed
     title : str
         movie title
     year : str
@@ -170,9 +174,12 @@ def lookup_id(api_key: str, title: str, year: str = "") -> int:
             mid = int(response["results"][0]["id"])
             return mid
         except IndexError:
-            return lookup_id(api_key, title)
+            return lookup_id(api_key=api_key, strict=strict, title=title)
 
     else:
+        if strict:
+            return -1
+
         url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&include_adult=true"
         response = requests.get(url).json()
 
@@ -184,7 +191,7 @@ def lookup_id(api_key: str, title: str, year: str = "") -> int:
 
 
 def _update_lookup_table(
-    api_key: str, input_folder: str, output_folder: str, style: int = -1
+    api_key: str, input_folder: str, output_folder: str, strict: bool, style: int = -1
 ) -> pd.DataFrame:
     """Creates or updates the lookup table.
 
@@ -228,22 +235,16 @@ def _update_lookup_table(
     auto_ids = []
     for index, row in tqdm(df.iterrows(), desc="IDs    ", total=len(df["disk.fname"])):
         fname = row["disk.fname"]
+        auto_id = int(row["tmms.id_auto"])
+        man_id = int(row["tmms.id_man"])
+        title = row["disk.title"]
+        year = str(row["disk.year"])
 
-        if row["tmms.id_man"] != 0:
-            auto_ids.append(row["tmms.id_auto"])
-            logging.info(f"{fname}: tmms.id_man entered")
-
-        elif int(row["tmms.id_auto"]) > 0:
-            auto_ids.append(row["tmms.id_auto"])
-            logging.info(f"{fname}: tmms.id_auto already exists")
-
+        if man_id != 0 or auto_id > 0:
+            auto_ids.append(auto_id)
         else:
-            new_id = lookup_id(api_key, row["disk.title"], str(row["disk.year"]))
+            new_id = lookup_id(api_key=api_key, strict=strict, title=title, year=year)
             auto_ids.append(new_id)
-            if new_id == -1:
-                logging.info(f"{fname}: tmms.id_auto not found")
-            else:
-                logging.info(f"{fname}: tmms.id_auto found {new_id}")
 
     df["tmms.id_auto"] = auto_ids
     return df
@@ -473,6 +474,7 @@ def main(
     output_folder: str,
     m: bool,
     c: bool,
+    strict: bool,
     style: int = -1,
 ):
     # check inputs
@@ -488,7 +490,9 @@ def main(
     start = datetime.now()
 
     # update or create lookup table
-    lookup_df = _update_lookup_table(api_key, input_folder, output_folder, style)
+    lookup_df = _update_lookup_table(
+        api_key, input_folder, output_folder, strict, style
+    )
     _write_to_disk(lookup_df, output_folder + "tmms_lookuptab.csv")
 
     # get ids to lookup
@@ -552,6 +556,8 @@ if __name__ == "__main__":
         "--c", action="store_true", help="set flag for pulling credit data"
     )
 
+    parser.add_argument("--s", action="store_true", help="set flag for no more lookups")
+
     parser.add_argument(
         "--style", dest="style", type=int, required=False, help="parsing style"
     )
@@ -561,8 +567,9 @@ if __name__ == "__main__":
     main(
         api_key=args.api_key,
         input_folder=args.input_folder,
-        style=args.style,
-        c=args.c,
-        m=args.m,
         output_folder=args.output_folder,
+        m=args.m,
+        c=args.c,
+        strict=args.s,
+        style=args.style,
     )
