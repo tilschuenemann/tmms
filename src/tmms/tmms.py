@@ -213,8 +213,6 @@ def _update_lookup_table(
     lookuptab = output_folder + "/tmms_lookuptab.csv"
 
     if os.path.exists(lookuptab):
-        logging.info("lookuptable already exists")
-
         df_stale = pd.read_csv(lookuptab, sep=";", encoding="UTF-8")
         diff = df[~(df["disk.fname"].isin(df_stale["disk.fname"]))]
         df = pd.concat([df_stale, diff], axis=0)
@@ -483,23 +481,6 @@ def main(
     elif style is not None and style not in range(0, 2):
         exit("style not in range")
 
-    # setup logging
-    logger = logging.getLogger("tmmslogger")
-    logging.basicConfig(
-        filename=output_folder + "/tmms-log.log",
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(funcName)s - %(message)s",
-    )
-
-    logging.info(
-        "start parameters:\n"
-        + f"input_folder: {input_folder}\n"
-        + f"style: {style}\n"
-        + f"m: {m}\n"
-        + f"c: {c}\n"
-        + f"output_folder: {output_folder}"
-    )
-
     start = datetime.now()
 
     # update or create lookup table
@@ -535,7 +516,6 @@ def main(
         _write_to_disk(cast_crew, output_folder + "tmms_credits.csv")
 
     duration = datetime.now() - start
-    logger.info(f"finished in {duration}")
 
 
 if __name__ == "__main__":
