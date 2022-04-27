@@ -11,7 +11,18 @@ import os
 
 
 def _str_empty(my_string: str) -> bool:
-    """Helper to check for empty strings"""
+    """Helper to check for empty strings
+
+    Parameter
+    -------
+    my_string: str
+        string to check
+
+    Returns
+    -------
+    bool
+        whether string is empty
+    """
     if my_string and my_string.strip():
         return False
     else:
