@@ -4,7 +4,6 @@ import numpy as np
 
 
 import argparse
-from datetime import datetime
 import requests  # type: ignore
 import os
 
@@ -56,10 +55,10 @@ def _guess_convention(item_names: list[str]) -> int:
         2: r"(.*)",
     }
 
-    df = pd.DataFrame(item_names, columns=["fnames"])
+    df = pd.DataFrame(item_names, columns=["item"])
 
     for style, regex in styles_for_convention.items():
-        result = df["fnames"].str.extract(regex)
+        result = df["item"].str.extract(regex)
         match = len(result[result.isnull().any(axis=1)]) == 0
         if match:
             my_style = style
@@ -67,80 +66,46 @@ def _guess_convention(item_names: list[str]) -> int:
     return my_style
 
 
-def generic_id_lookup(item_names: list[str], style: int = -1) -> pd.DataFrame:
-    """
+def _update_lookup_table(
+    api_key: str, strict: bool, input_folder: str, output_folder: str, style: int = -1
+):
+    fresh_items = next(os.walk(input_folder))[1]
 
-    Parameters
-    -------
-    item_names: list
-        List of movie title strings
-    style: int
-        (Optional) style id
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame containing items, their extracts according
-        to convention and their TMDB id
-    """
+    if len(fresh_items) == 0:
+        exit("input folder empty")
 
-    if len(item_names) == 0:
-        return pd.DataFrame()
+    lookuptab = f"{output_folder}/tmms_lookuptab.csv"
 
-    df = pd.DataFrame(item_names, columns=["disk.fname"])
-
-    if style == -1:
-        style = _guess_convention(item_names)
-
-    df = pd.DataFrame(item_names, columns=["disk.fname"])
-    df["tmms.id_man"] = 0
-    df["tmms.id_auto"] = 0
-
-    if style == -1:
-        exit("no style could be guessed, please supply style yourself")
-    if style == 0:
-        extract = df["disk.fname"].str.extract(
-            r"(?P<title>^.*) \((?P<year>\d{4})\) \((?P<subtitles>.*)\)$"
+    if os.path.exists(lookuptab) is False:
+        lookup_df = get_ids(
+            api_key=api_key, strict=True, item_names=fresh_items, style=style
         )
-    elif style == 1:
-        extract = df["disk.fname"].str.extract(r"^(?P<year>\d{4}) - (?P<title>.*)$")
-    elif style == 2:
-        extract = df["disk.fname"].str.extract(r"^(?P<title>.*)$")
+        lookup_df["tmdb_id_man"] = 0
+    else:
+        stale_items = pd.read_csv(lookuptab, sep=";", encoding="UTF-8")
 
-    extract = extract.add_prefix("disk.")
-    extract = extract.fillna(-1)
-    extract = extract.replace(r"^\s*$", -1, regex=True)
+        list_with_ids = stale_items[
+            (stale_items["tmdb_id"] >= 0) | (stale_items["tmdb_id_man"] != 0)
+        ]
 
-    df = pd.concat([df, extract], axis=1)
-    return df
+        list_without_ids = stale_items[
+            (stale_items["tmdb_id"] < 0) & (stale_items["tmdb_id_man"] == 0)
+        ]["item"].tolist()
 
+        list_new_items = list(
+            set(list_without_ids) | (set(fresh_items) - set(list_with_ids["item"]))
+        )
 
-def import_folder(input_folder: str, style: int = -1) -> pd.DataFrame:
-    """Passes the contents of the input folder as item_list to
-    generic_id_lookup.
+        renewed = get_ids(api_key, strict, list_new_items, style=style)
+        renewed["tmdb_id_man"] = 0
+        lookup_df = pd.concat([list_with_ids, renewed], axis=0)
 
-    If a non-existant parent_folder is supplied or if it's
-    empty, an empty dataframe will be returned.
+        lookup_df = lookup_df.reset_index(drop=True)
 
-    Parameters
-    --------
-    input_folder : str
-        filepath to folder containing all movies
-    style : int
-        parsing style
-    Returns
-    --------
-    pd.DataFrame
+    lookup_df = lookup_df.sort_values(by="item")
 
-    """
-
-    if os.path.exists(input_folder) is False:
-        return pd.DataFrame()
-
-    movies_disk = next(os.walk(input_folder))[1]
-
-    df = generic_id_lookup(movies_disk, style)
-
-    return df
+    _write_to_disk(lookup_df, f"{output_folder}tmms_lookuptab.csv")
+    return lookup_df
 
 
 def get_id(api_key: str, strict: bool, title: str, year: str = "") -> int:
@@ -177,7 +142,10 @@ def get_id(api_key: str, strict: bool, title: str, year: str = "") -> int:
         return -1
 
     if _str_empty(year) is False:
-        url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&year={year}&include_adult=true"
+        url = (
+            f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}"
+            + f"&query={title}&year={year}&include_adult=true"
+        )
         response = requests.get(url).json()
 
         try:
@@ -200,63 +168,51 @@ def get_id(api_key: str, strict: bool, title: str, year: str = "") -> int:
             return -1
 
 
-def _update_lookup_table(
-    api_key: str, input_folder: str, output_folder: str, strict: bool, style: int = -1
+def get_ids(
+    api_key: str, strict: bool, item_names: list[str], style: int = -1
 ) -> pd.DataFrame:
-    """Creates or updates the lookup table.
 
-    If a lookup table exists in the output folder, it's compared
-    to the actual files on disk. The difference gets added to df.
+    if len(item_names) == 0:
+        return pd.DataFrame()
 
-    If a manual or an automatic id exist, they are kept. Missing
-    or new automatic ids are filled in with -2, which get looked
-    up.
+    if style == -1:
+        style = _guess_convention(item_names)
 
-    The list of automatic ids overwrites itself.
+    df = pd.DataFrame(item_names, columns=["item"])
 
-    Parameters
-    --------
-    api_key : str
-        TMDB API key
-    input_folder : str
-        folder containing all movies
-    output_folder : str
-        folder to write lookup table to
-    style : int
-        parsing style
+    if style == -1:
+        exit("no style could be guessed, please supply style yourself")
+    elif style == 0:
+        extract = df["item"].str.extract(
+            r"(?P<title>^.*) \((?P<year>\d{4})\) \((?P<subtitles>.*)\)$"
+        )
+    elif style == 1:
+        extract = df["item"].str.extract(r"^(?P<year>\d{4}) - (?P<title>.*)$")
+    elif style == 2:
+        extract = df["item"].str.extract(r"^(?P<title>.*)$")
 
-    Returns
-    --------
-    pd.DataFrame
-        updated lookup table
-    """
-    df = import_folder(input_folder, style)
-    lookuptab = output_folder + "/tmms_lookuptab.csv"
+    extract = extract.fillna(-1)
+    extract = extract.replace(r"^\s*$", -1, regex=True)
 
-    if os.path.exists(lookuptab):
-        df_stale = pd.read_csv(lookuptab, sep=";", encoding="UTF-8")
-        diff = df[~(df["disk.fname"].isin(df_stale["disk.fname"]))]
-        df = pd.concat([df_stale, diff], axis=0)
-        df["tmms.id_auto"] = df["tmms.id_auto"].fillna(-2).astype(int)
-        df.reset_index(drop=True)
+    df = pd.concat([df, extract], axis=1)
+    df.reset_index()
 
-    # GET IDs
+    tmdb_ids = []
+    for index, row in tqdm(df.iterrows(), desc="IDs    ", total=len(df["item"])):
+        title = row["title"]
 
-    auto_ids = []
-    for index, row in tqdm(df.iterrows(), desc="IDs    ", total=len(df["disk.fname"])):
-        fname = row["disk.fname"]
-        auto_id = int(row["tmms.id_auto"])
-        man_id = int(row["tmms.id_man"])
-        title = row["disk.title"]
-        year = str(row["disk.year"])
-
-        if man_id != 0 or auto_id > 0:
-            auto_ids.append(auto_id)
+        if style == 0 or style == 1:
+            year = str(row["year"])
         else:
-            new_id = get_id(api_key=api_key, strict=strict, title=title, year=year)
-            auto_ids.append(new_id)
+            year = ""
 
-    df["tmms.id_auto"] = auto_ids
+        new_id = get_id(api_key=api_key, strict=strict, title=title, year=year)
+        tmdb_ids.append(new_id)
+
+    df["tmdb_id"] = tmdb_ids
+
+    df.drop(["title", "year", "subtitles"], axis=1, inplace=True, errors="ignore")
+
     return df
 
 
@@ -498,11 +454,9 @@ def main(
     elif style is not None and style not in range(0, 2):
         exit("style not in range")
 
-    start = datetime.now()
-
     # update or create lookup table
     lookup_df = _update_lookup_table(
-        api_key, input_folder, output_folder, strict, style
+        api_key, strict, input_folder, output_folder, style
     )
     _write_to_disk(lookup_df, output_folder + "tmms_lookuptab.csv")
 
@@ -510,9 +464,9 @@ def main(
     if m or c:
         unique_ids: list[int] = np.ndarray.tolist(
             np.where(
-                lookup_df["tmms.id_man"] != 0,
-                lookup_df["tmms.id_man"],
-                lookup_df["tmms.id_auto"],
+                lookup_df["tmdb_id_man"] != 0,
+                lookup_df["tmdb_id_man"],
+                lookup_df["tmdb_id"],
             )
         )
 
@@ -533,8 +487,6 @@ def main(
     if c:
         cast_crew = get_credits(api_key, unique_ids)
         _write_to_disk(cast_crew, output_folder + "tmms_credits.csv")
-
-    duration = datetime.now() - start
 
 
 if __name__ == "__main__":
