@@ -250,7 +250,9 @@ def _update_lookup_table(
     return df
 
 
-def get_credits(api_key: str, id_list: list[int]) -> pd.DataFrame:
+def get_credits(
+    api_key: str, id_list: list[int], language: str = "en-US"
+) -> pd.DataFrame:
     """
     Parameters
     api_key: str
@@ -267,7 +269,7 @@ def get_credits(api_key: str, id_list: list[int]) -> pd.DataFrame:
 
     for mid in tqdm(id_list, "Credits"):
 
-        url = f"https://api.themoviedb.org/3/movie/{mid}/credits?api_key={api_key}"
+        url = f"https://api.themoviedb.org/3/movie/{mid}/credits?api_key={api_key}&language={language}"
         response = requests.get(url).json()
 
         response["m.id"] = response.pop("id")
@@ -323,7 +325,7 @@ def get_credits(api_key: str, id_list: list[int]) -> pd.DataFrame:
 
 
 def get_details(
-    api_key: str, id_list: list[int]
+    api_key: str, id_list: list[int], language: str = "en-US"
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Parameters
@@ -361,7 +363,7 @@ def get_details(
 
     for mid in tqdm(id_list, "Details"):
 
-        url = f"https://api.themoviedb.org/3/movie/{mid}?api_key={api_key}&include_adult=true"
+        url = f"https://api.themoviedb.org/3/movie/{mid}?api_key={api_key}&include_adult=true&language={language}"
         response = requests.get(url).json()
 
         tmp = pd.json_normalize(
