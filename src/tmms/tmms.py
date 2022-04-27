@@ -5,7 +5,6 @@ import numpy as np
 
 import argparse
 from datetime import datetime
-import logging
 import requests  # type: ignore
 import os
 
@@ -478,7 +477,6 @@ def _write_to_disk(
         decimal=",",
         date_format="%Y-%m-%d",
     )
-    logging.info(f"saved {output_path}")
 
 
 def main(
