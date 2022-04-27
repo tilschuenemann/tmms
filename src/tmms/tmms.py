@@ -133,7 +133,7 @@ def import_folder(input_folder: str, style: int = -1) -> pd.DataFrame:
     return df
 
 
-def lookup_id(api_key: str, strict: bool, title: str, year: str = "") -> int:
+def get_id(api_key: str, strict: bool, title: str, year: str = "") -> int:
     """Creates a search get request for TMDB API.
 
     Searches for combination of title and year first -
@@ -174,7 +174,7 @@ def lookup_id(api_key: str, strict: bool, title: str, year: str = "") -> int:
             mid = int(response["results"][0]["id"])
             return mid
         except IndexError:
-            return lookup_id(api_key=api_key, strict=strict, title=title)
+            return get_id(api_key=api_key, strict=strict, title=title)
 
     else:
         if strict:
@@ -243,7 +243,7 @@ def _update_lookup_table(
         if man_id != 0 or auto_id > 0:
             auto_ids.append(auto_id)
         else:
-            new_id = lookup_id(api_key=api_key, strict=strict, title=title, year=year)
+            new_id = get_id(api_key=api_key, strict=strict, title=title, year=year)
             auto_ids.append(new_id)
 
     df["tmms.id_auto"] = auto_ids
