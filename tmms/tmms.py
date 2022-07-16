@@ -34,12 +34,9 @@ def _guess_convention(item_names: list[str]) -> int:
     :returns: style id
     """
 
-    my_style = -1
-
     styles_for_convention = {
         0: r"(^.*\s\(\d{4}\)\s\(.*\)$)",
         1: r"(^\d{4}\s-\s.*$)",
-        2: r"(.*)",
     }
 
     df = pd.DataFrame(item_names, columns=["item"])
@@ -48,9 +45,9 @@ def _guess_convention(item_names: list[str]) -> int:
         result = df["item"].str.extract(regex)
         match = len(result[result.isnull().any(axis=1)]) == 0
         if match:
-            my_style = style
+            return style
 
-    return my_style
+    return -1
 
 
 def _update_lookup_table(
