@@ -36,11 +36,3 @@ def test_get_id_strict():
     title = "The Matrix"
     year = "1900"
     assert get_id(api_key = api_key, strict = strict, title = title, year = year) == -1
-
-def test_get_id_notstrict():
-    api_key = os.getenv("TMDB_API_KEY")
-    strict = False
-    title = "The Matrix"
-    year = "1900"
-    assert get_id(api_key = api_key, strict = strict, title = title, year = year) == 603
-    assert get_id(api_key = api_key, strict = strict, title = title) == 603

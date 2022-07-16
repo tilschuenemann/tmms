@@ -9,11 +9,11 @@ def test_str_empty():
 
 def test_guess_convention():
     t1 = ["The Matrix (1999) (subs)"]
-    t2 = ["1999 - The Matrix (1999)"]
+    t2 = ["1999 - The Matrix"]
     t3 = [""]
 
-    assert _guess_convention(t1) == 1
-    assert _guess_convention(t2) == 2
+    assert _guess_convention(t1) == 0
+    assert _guess_convention(t2) == 1
     assert _guess_convention(t3) == -1
 
 def test_write_to_disk(tmp_path):
