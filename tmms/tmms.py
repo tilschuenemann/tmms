@@ -98,14 +98,9 @@ def _update_lookup_table(
 def get_id(api_key: str, strict: bool, title: str, year: str = "") -> int:
     """Creates a search get request for TMDB API.
 
-    Searches for combination of title and year first -
-    if response is empty another search only using the title
-    is performed.
-
-    Incase of multiple results the first one is taken.
-
-    If the supplied title is an empty string or nothing
-    is found, -1 is returned.
+    Searches the TMDB for movies matching the title and release year. If there are no results,
+    the release year will be omitted. strict can be set so only the initial call gets made.
+    If there are multiple results, the most popular one is kept. Incase of no result, -1 is returned.
 
     :param api_key: TMDB API key
     :param strict: if strict==False, another lookup without the year will be performed
@@ -113,13 +108,15 @@ def get_id(api_key: str, strict: bool, title: str, year: str = "") -> int:
     :param year: movie release year
     :returns: TMDB id
     """
+
+    NO_RESULT = -1
+
     if _str_empty(api_key) or _str_empty(title):
-        return -1
+        return NO_RESULT
 
     if _str_empty(year) is False:
         url = (
-            f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}"
-            + f"&query={title}&year={year}&include_adult=true"
+            f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&year={year}&include_adult=true"
         )
         response = requests.get(url).json()
 
@@ -127,12 +124,11 @@ def get_id(api_key: str, strict: bool, title: str, year: str = "") -> int:
             mid = int(response["results"][0]["id"])
             return mid
         except IndexError:
-            return get_id(api_key=api_key, strict=strict, title=title)
-
+            if strict:
+                return NO_RESULT
+            else:
+                return get_id(api_key=api_key, strict=strict, title=title)
     else:
-        if strict:
-            return -1
-
         url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&include_adult=true"
         response = requests.get(url).json()
 
@@ -140,7 +136,7 @@ def get_id(api_key: str, strict: bool, title: str, year: str = "") -> int:
             mid = int(response["results"][0]["id"])
             return mid
         except IndexError:
-            return -1
+            return NO_RESULT
 
 
 def get_ids(
