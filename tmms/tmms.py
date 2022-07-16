@@ -386,25 +386,64 @@ def _write_to_disk(
     )
 
 
-def main(
-    api_key: str,
-    input_folder: str,
-    output_folder: str,
-    m: bool,
-    c: bool,
-    strict: bool,
-    style: int = -1,
-):
+def main():
+    parser = argparse.ArgumentParser(description="Scrape TMDB metadata")
+    parser.add_argument(
+        "input_folder",
+        dest="input_folder",
+        type=pathlib.Path,
+        required=True,
+        help="folder containing movies",
+    )
+    parser.add_argument(
+        "--output_folder",
+        dest="output_folder",
+        type=pathlib.Path,
+        required=False,
+        help="Folder to write results to. If nothing is specified,"
+        + "files get written to the current working directry.",
+    )
+    parser.add_argument(
+        "--api_key", dest="api_key", type=str, required=False, help="TMDB API key"
+    )
+    
+    parser.add_argument(
+        "--m", action="store_true", help="set flag for pulling movie detail data"
+    )
+    parser.add_argument(
+        "--c", action="store_true", help="set flag for pulling credit data"
+    )
+    parser.add_argument("--s", action="store_true", help="set flag for no more lookups")
+    parser.add_argument(
+        "--style", dest="style", type=int, choices=range(0,2), required=False, help="parsing style"
+    )
+
+    args = parser.parse_args()
+    input_folder = args.input_folder
+    api_key = args.api_key 
+    m = args.m 
+    c = args.c 
+    s = args.s 
+    style = args.style
+    
+
+    # default to current path
+    if args.output_folder is None:
+        output_folder = os.path.dirname(os.path.realpath(__file__))
+    else:
+        output_folder = args.output_folder
+
     # check inputs
     if _str_empty(api_key):
-        exit("no api key supplied")
-    if os.path.isdir(input_folder) is False:
+        try:
+            api_key = os.getenv("TMDB_API_KEY")
+        except:
+            exit("no api key supplied")
+    if not(input_folder.isdir() and input_folder.exists()):
         exit("input folder doesnt exit or is not a directory")
-    elif os.path.isdir(output_folder) is False:
+    elif not(output_folder.isdir() and output_folder.exists()):
         exit("output folder doesnt exit or is not a directory")
-    elif style is not None and style not in range(0, 2):
-        exit("style not in range")
-
+    
     # update or create lookup table
     lookup_df = _update_lookup_table(
         api_key, strict, input_folder, output_folder, style
@@ -441,49 +480,4 @@ def main(
 
 
 if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser(description="Scrape TMDB metadata")
-    parser.add_argument(
-        "--api_key", dest="api_key", type=str, required=True, help="TMDB API key"
-    )
-    parser.add_argument(
-        "--input_folder",
-        dest="input_folder",
-        type=str,
-        required=True,
-        help="folder containing movies",
-    )
-
-    parser.add_argument(
-        "--output_folder",
-        dest="output_folder",
-        type=str,
-        required=True,
-        help="Folder to write results to. If nothing is specified,"
-        + "files get written to the current working directry.",
-    )
-
-    parser.add_argument(
-        "--m", action="store_true", help="set flag for pulling movie detail data"
-    )
-    parser.add_argument(
-        "--c", action="store_true", help="set flag for pulling credit data"
-    )
-
-    parser.add_argument("--s", action="store_true", help="set flag for no more lookups")
-
-    parser.add_argument(
-        "--style", dest="style", type=int, required=False, help="parsing style"
-    )
-
-    args = parser.parse_args()
-
-    main(
-        api_key=args.api_key,
-        input_folder=args.input_folder,
-        output_folder=args.output_folder,
-        m=args.m,
-        c=args.c,
-        strict=args.s,
-        style=args.style,
-    )
+    main()
