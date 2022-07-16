@@ -50,9 +50,7 @@ def _guess_convention(item_names: list[str]) -> int:
     return -1
 
 
-def _update_lookup_table(
-    api_key: str, strict: bool, input_folder: pathlib.Path, output_folder: pathlib.Path, style: int = -1
-):
+def _update_lookup_table(api_key: str, strict: bool, input_folder: pathlib.Path, output_folder: pathlib.Path, style: int = -1):
     """ 
     :param api_key: TMDB API key
     :param strict:
@@ -190,13 +188,11 @@ def get_ids(
     return df
 
 
-def get_credits(
-    api_key: str, id_list: list[int], language: str = "en-US"
-) -> pd.DataFrame:
+def get_credits(api_key: str, id_list: list[int], language: str = "en-US") -> pd.DataFrame:
     """
 
     :param api_key: TMDB API key
-    :param id_list: .ist of TMDB ids
+    :param id_list: list of TMDB ids
     :returns: credits as dataframe
     """
     cast_crew = pd.DataFrame()
@@ -258,9 +254,7 @@ def get_credits(
     return cast_crew
 
 
-def get_details(
-    api_key: str, id_list: list[int], language: str = "en-US"
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def get_details(api_key: str, id_list: list[int], language: str = "en-US") -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     
     :param api_key: TMDB API key
