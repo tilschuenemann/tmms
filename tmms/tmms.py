@@ -11,15 +11,8 @@ import os
 def _str_empty(my_string: str) -> bool:
     """Helper to check for empty strings
 
-    Parameter
-    -------
-    my_string: str
-        string to check
-
-    Returns
-    -------
-    bool
-        whether string is empty
+    :param my_string: str to check
+    :returns: True if my_string is empty
     """
     if my_string and my_string.strip():
         return False
@@ -36,15 +29,9 @@ def _guess_convention(item_names: list[str]) -> int:
     A match is returned if every item matches
     the regex of a style.
 
-    Parameters:
-    -------
-    item_names : list
+    :param items_names:
         list to be checked against naming conventions
-
-    Returns
-    -------
-    int
-        style id
+    :returns: style id
     """
 
     my_style = -1
@@ -120,23 +107,11 @@ def get_id(api_key: str, strict: bool, title: str, year: str = "") -> int:
     If the supplied title is an empty string or nothing
     is found, -1 is returned.
 
-
-    Parameters
-    -------
-    api_key : str
-        TMDB API key
-    strict : bool
-        if strict==False, another lookup without the year will be performed
-    title : str
-        movie title
-    year : str
-        movie release year
-
-    Returns
-    -------
-    int
-        TMDB id
-
+    :param api_key: TMDB API key
+    :param strict: if strict==False, another lookup without the year will be performed
+    :param title: movie title
+    :param year: movie release year
+    :returns: TMDB id
     """
     if _str_empty(api_key) or _str_empty(title):
         return -1
@@ -220,16 +195,10 @@ def get_credits(
     api_key: str, id_list: list[int], language: str = "en-US"
 ) -> pd.DataFrame:
     """
-    Parameters
-    api_key: str
-        TMDB API key
-    id_list: list
-        list of TMDB ids
 
-    Returns
-    -------
-    pd.DataFrame
-        credits
+    :param api_key: TMDB API key
+    :param id_list: .ist of TMDB ids
+    :returns: credits as dataframe
     """
     cast_crew = pd.DataFrame()
 
@@ -294,25 +263,11 @@ def get_details(
     api_key: str, id_list: list[int], language: str = "en-US"
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
-    Parameters
-    -------
-    api_key: str
-        TMBD API key
-    id_list: list
-        list of TMDB ids
-
-    Returns
-    -------
-    pd.DataFrame
-        movie details
-    pd.DataFrame
-        genres
-    pd.DataFrame
-        production companies
-    pd.DataFrame
-        production countries
-    pd.DataFrame
-        spoken languages
+    
+    :param api_key: TMDB API key
+    :param id_list: list of TMDB ids
+    :returns: dfs movie_details, genres, production companies, production countr
+    ies, spoken languages
     """
     details = pd.DataFrame()
     genres = pd.DataFrame()
@@ -418,12 +373,8 @@ def _write_to_disk(
 ):
     """Write df to output_path with European settings.
 
-    Parameters
-    --------
-    df : pd.DataFrame
-        DataFrame to be written.
-    output_path : str
-        Optional, path to write df to.
+    :param df: dataframe to be written
+    :param output_path: path to write df to
     """
     df.to_csv(
         output_path,
