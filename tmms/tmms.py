@@ -366,11 +366,7 @@ def get_details(api_key: str, id_list: list[int], language: str = "en-US") -> tu
     return details, genres, prod_comp, prod_count, spoken_langs
 
 
-def _write_to_disk(
-    df: pd.DataFrame,
-    fname: str,
-    output_path: pathlib.Path,
-):
+def _write_to_disk(df: pd.DataFrame,fname: str,output_path: pathlib.Path):
     """Write df to output_path with European settings.
 
     :param df: dataframe to be written
@@ -378,7 +374,7 @@ def _write_to_disk(
     :param output_path: path to write df to
     """
 
-    output_path = output_path / fname
+    output_path = pathlib.Path(output_path) / fname
 
     df.to_csv(
         output_path,
