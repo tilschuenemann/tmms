@@ -50,4 +50,14 @@ def test_argparse_badoutputfolder(capsys, tmp_path):
         main([str(d),"--output_folder","non-existing-folder"])
     assert pytest_wrapped_e.type == SystemExit
     assert pytest_wrapped_e.value.code == "output folder doesnt exist or is not a directory"
+
+def test_argparse_noapikey(tmp_path):
     
+    os.environ.pop('TMDB_API_KEY', None)
+    d = tmp_path / "input_folder"
+    d.mkdir()
+
+    with pytest.raises(SystemExit) as pytest_wrapped_e:
+        main([str(d),"--api_key",None])
+    assert pytest_wrapped_e.type == SystemExit
+    assert pytest_wrapped_e.value.code == "no api key supplied"

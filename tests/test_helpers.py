@@ -5,7 +5,7 @@ import pandas as pd
 def test_str_empty():
     assert _str_empty("")
     assert _str_empty("  ")
-
+    assert _str_empty(None)
 
 def test_guess_convention():
     t1 = ["The Matrix (1999) (subs)"]
