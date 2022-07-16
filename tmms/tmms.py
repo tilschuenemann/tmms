@@ -8,6 +8,7 @@ import requests  # type: ignore
 import os
 import pathlib
 
+
 def _str_empty(my_string: str) -> bool:
     """Helper to check for empty strings
 
@@ -51,7 +52,7 @@ def _guess_convention(item_names: list[str]) -> int:
 
 
 def _update_lookup_table(api_key: str, strict: bool, input_folder: pathlib.Path, output_folder: pathlib.Path, style: int = -1):
-    """ 
+    """
     :param api_key: TMDB API key
     :param strict:
     :param input_folder: movie library
@@ -67,16 +68,21 @@ def _update_lookup_table(api_key: str, strict: bool, input_folder: pathlib.Path,
     lookuptab = output_folder / "tmms_lookuptab.csv"
 
     if lookuptab.exists() is False:
-        lookup_df = get_ids(api_key=api_key, strict=True, item_names=fresh_items, style=style)
+        lookup_df = get_ids(api_key=api_key, strict=True,
+                            item_names=fresh_items, style=style)
         lookup_df["tmdb_id_man"] = 0
     else:
         stale_items = pd.read_csv(lookuptab, sep=";", encoding="UTF-8")
         # its assumed that the TMDB ids are greater or equal than 0
-        list_with_ids = stale_items[(stale_items["tmdb_id"] >= 0) | (stale_items["tmdb_id_man"] != 0)]
-        list_without_ids = stale_items[(stale_items["tmdb_id"] < 0) & (stale_items["tmdb_id_man"] == 0)]["item"].tolist()
-        list_new_items = list(set(list_without_ids) | (set(fresh_items) - set(list_with_ids["item"])))
+        list_with_ids = stale_items[(stale_items["tmdb_id"] >= 0) | (
+            stale_items["tmdb_id_man"] != 0)]
+        list_without_ids = stale_items[(stale_items["tmdb_id"] < 0) & (
+            stale_items["tmdb_id_man"] == 0)]["item"].tolist()
+        list_new_items = list(set(list_without_ids) | (
+            set(fresh_items) - set(list_with_ids["item"])))
 
-        renewed = get_ids(api_key=api_key, strict=strict, item_names=list_new_items, style=style)
+        renewed = get_ids(api_key=api_key, strict=strict,
+                          item_names=list_new_items, style=style)
         renewed["tmdb_id_man"] = 0
         lookup_df = pd.concat([list_with_ids, renewed], axis=0)
         lookup_df = lookup_df.reset_index(drop=True)
@@ -131,13 +137,13 @@ def get_id(api_key: str, strict: bool, title: str, year: str = "") -> int:
             return NO_RESULT
 
 
-def _extract(item_names: list[str], style: int= -1):
-    """Extracts lookup data from item_names using provided style. 
+def _extract(item_names: list[str], style: int = -1):
+    """Extracts lookup data from item_names using provided style.
     If title, year or subtitles do not conform, "" will be inserted into the df.
 
 
     :param item_names:
-    :param style: parsing style 
+    :param style: parsing style
     :returns: df
 
     """
@@ -151,7 +157,8 @@ def _extract(item_names: list[str], style: int= -1):
     if style == -1:
         exit("no style could be guessed, please supply style yourself")
     elif style == 0:
-        extract = df["item"].str.extract(r"(?P<title>^.*) \((?P<year>\d{4})\) \((?P<subtitles>.*)\)$")
+        extract = df["item"].str.extract(
+            r"(?P<title>^.*) \((?P<year>\d{4})\) \((?P<subtitles>.*)\)$")
     elif style == 1:
         extract = df["item"].str.extract(r"^(?P<year>\d{4}) - (?P<title>.*)$")
     elif style == 2:
@@ -166,6 +173,7 @@ def _extract(item_names: list[str], style: int= -1):
 
     return df
 
+
 def get_ids(api_key: str, strict: bool, item_names: list[str], style: int = -1) -> pd.DataFrame:
     """Creates a df with item_names as column and a tmdb_id column.
 
@@ -176,20 +184,21 @@ def get_ids(api_key: str, strict: bool, item_names: list[str], style: int = -1) 
     :returns: dataframe
     """
 
-    df = _extract(item_names = item_names, style=style)
-    
+    df = _extract(item_names=item_names, style=style)
+
     # get list tmdb ids
     tmdb_ids = []
     for index, row in tqdm(df.iterrows(), desc="IDs    ", total=len(df["item"])):
         title = row["title"]
         year = row["year"]
-        
+
         new_id = get_id(api_key=api_key, strict=strict, title=title, year=year)
         tmdb_ids.append(new_id)
 
     # append ids and remove extracted columns
     df["tmdb_id"] = tmdb_ids
-    df.drop(["title", "year", "subtitles"], axis=1, inplace=True, errors="ignore")
+    df.drop(["title", "year", "subtitles"],
+            axis=1, inplace=True, errors="ignore")
 
     return df
 
@@ -262,7 +271,7 @@ def get_credits(api_key: str, id_list: list[int], language: str = "en-US") -> pd
 
 def get_details(api_key: str, id_list: list[int], language: str = "en-US") -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
-    
+
     :param api_key: TMDB API key
     :param id_list: list of TMDB ids
     :returns: dfs movie_details, genres, production companies, production countr
@@ -323,12 +332,14 @@ def get_details(api_key: str, id_list: list[int], language: str = "en-US") -> tu
     genres = genres.add_prefix("genres.")
 
     prod_comp = prod_comp.astype(
-        {"id": int, "logo_path": str, "name": str, "origin_country": str, "m.id": int}
+        {"id": int, "logo_path": str, "name": str,
+            "origin_country": str, "m.id": int}
     )
     prod_comp = prod_comp.add_prefix("production_companies.")
     prod_comp.replace("None", "", inplace=True)
 
-    prod_count = prod_count.astype({"iso_3166_1": str, "name": str, "m.id": int})
+    prod_count = prod_count.astype(
+        {"iso_3166_1": str, "name": str, "m.id": int})
     prod_count = prod_count.add_prefix("production_countries.")
 
     spoken_langs = spoken_langs.astype(
@@ -366,7 +377,7 @@ def get_details(api_key: str, id_list: list[int], language: str = "en-US") -> tu
     return details, genres, prod_comp, prod_count, spoken_langs
 
 
-def _write_to_disk(df: pd.DataFrame,fname: str,output_path: pathlib.Path):
+def _write_to_disk(df: pd.DataFrame, fname: str, output_path: pathlib.Path):
     """Write df to output_path with European settings.
 
     :param df: dataframe to be written
@@ -389,28 +400,32 @@ def _write_to_disk(df: pd.DataFrame,fname: str,output_path: pathlib.Path):
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Scrape TMDB metadata")
 
-    parser.add_argument("input_folder",type=str)
-    parser.add_argument("--output_folder",type=str,required=False,)
-    parser.add_argument("--api_key", type=str, required=False, help="TMDB API key")
-    parser.add_argument("--m", action="store_true", help="set flag for pulling movie detail data")
-    parser.add_argument("--c", action="store_true", help="set flag for pulling credit data")
-    parser.add_argument("--s", action="store_true", help="set flag for no more lookups")
-    parser.add_argument("--style", dest="style", type=int, choices=range(0,2), required=False, help="parsing style")
+    parser.add_argument("input_folder", type=str)
+    parser.add_argument("--output_folder", type=str, required=False,)
+    parser.add_argument("--api_key", type=str,
+                        required=False, help="TMDB API key")
+    parser.add_argument("--m", action="store_true",
+                        help="set flag for pulling movie detail data")
+    parser.add_argument("--c", action="store_true",
+                        help="set flag for pulling credit data")
+    parser.add_argument("--s", action="store_true",
+                        help="set flag for no more lookups")
+    parser.add_argument("--style", dest="style", type=int,
+                        choices=range(0, 2), required=False, help="parsing style")
 
     args = parser.parse_args(argv)
 
     input_folder = pathlib.Path(args.input_folder)
-    api_key = args.api_key 
-    m = args.m 
-    c = args.c 
-    s = args.s 
+    api_key = args.api_key
+    m = args.m
+    c = args.c
     strict = args.s
     style = args.style
-    
 
     # default to current path
     if args.output_folder is None:
-        output_folder = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
+        output_folder = pathlib.Path(
+            os.path.dirname(os.path.realpath(__file__)))
     else:
         output_folder = pathlib.Path(args.output_folder)
 
@@ -418,18 +433,18 @@ def main(argv=None):
     if _str_empty(api_key):
         try:
             api_key = os.getenv("TMDB_API_KEY")
-        except:
+        except Exception:
             exit("no api key supplied")
-    if input_folder.is_dir() is False or input_folder.exists()  is False:
+    if input_folder.is_dir() is False or input_folder.exists() is False:
         exit("input folder doesnt exist or is not a directory")
     elif not(output_folder.is_dir() or output_folder.exists()):
         exit("output folder doesnt exist or is not a directory")
-    
+
     # update or create lookup table
     lookup_df = _update_lookup_table(
         api_key, strict, input_folder, output_folder, style
     )
-    _write_to_disk(lookup_df,"tmms_lookuptab.csv",  output_folder)
+    _write_to_disk(lookup_df, "tmms_lookuptab.csv",  output_folder)
 
     # get ids to lookup
     if m or c:
@@ -450,10 +465,13 @@ def main(argv=None):
         )
 
         _write_to_disk(details, "tmms_moviedetails.csv", output_folder)
-        _write_to_disk(genres, "tmms_genres.csv",output_folder)
-        _write_to_disk(prod_comp, "tmms_production_companies.csv",output_folder)
-        _write_to_disk(prod_count, "tmms_production_countries.csv",output_folder)
-        _write_to_disk(spoken_langs, "tmms_spoken_languages.csv",output_folder)
+        _write_to_disk(genres, "tmms_genres.csv", output_folder)
+        _write_to_disk(
+            prod_comp, "tmms_production_companies.csv", output_folder)
+        _write_to_disk(
+            prod_count, "tmms_production_countries.csv", output_folder)
+        _write_to_disk(
+            spoken_langs, "tmms_spoken_languages.csv", output_folder)
 
     if c:
         cast_crew = get_credits(api_key, unique_ids)
