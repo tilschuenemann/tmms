@@ -386,52 +386,33 @@ def _write_to_disk(df: pd.DataFrame,fname: str,output_path: pathlib.Path):
     )
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description="Scrape TMDB metadata")
-    parser.add_argument(
-        "input_folder",
-        dest="input_folder",
-        type=pathlib.Path,
-        required=True,
-        help="folder containing movies",
-    )
-    parser.add_argument(
-        "--output_folder",
-        dest="output_folder",
-        type=pathlib.Path,
-        required=False,
-        help="Folder to write results to. If nothing is specified,"
-        + "files get written to the current working directry.",
-    )
-    parser.add_argument(
-        "--api_key", dest="api_key", type=str, required=False, help="TMDB API key"
-    )
-    
-    parser.add_argument(
-        "--m", action="store_true", help="set flag for pulling movie detail data"
-    )
-    parser.add_argument(
-        "--c", action="store_true", help="set flag for pulling credit data"
-    )
-    parser.add_argument("--s", action="store_true", help="set flag for no more lookups")
-    parser.add_argument(
-        "--style", dest="style", type=int, choices=range(0,2), required=False, help="parsing style"
-    )
 
-    args = parser.parse_args()
-    input_folder = args.input_folder
+    parser.add_argument("input_folder",type=str)
+    parser.add_argument("--output_folder",type=str,required=False,)
+    parser.add_argument("--api_key", type=str, required=False, help="TMDB API key")
+    parser.add_argument("--m", action="store_true", help="set flag for pulling movie detail data")
+    parser.add_argument("--c", action="store_true", help="set flag for pulling credit data")
+    parser.add_argument("--s", action="store_true", help="set flag for no more lookups")
+    parser.add_argument("--style", dest="style", type=int, choices=range(0,2), required=False, help="parsing style")
+
+    args = parser.parse_args(argv)
+
+    input_folder = pathlib.Path(args.input_folder)
     api_key = args.api_key 
     m = args.m 
     c = args.c 
     s = args.s 
+    strict = args.s
     style = args.style
     
 
     # default to current path
     if args.output_folder is None:
-        output_folder = os.path.dirname(os.path.realpath(__file__))
+        output_folder = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
     else:
-        output_folder = args.output_folder
+        output_folder = pathlib.Path(args.output_folder)
 
     # check inputs
     if _str_empty(api_key):
@@ -439,10 +420,10 @@ def main():
             api_key = os.getenv("TMDB_API_KEY")
         except:
             exit("no api key supplied")
-    if not(input_folder.isdir() and input_folder.exists()):
-        exit("input folder doesnt exit or is not a directory")
-    elif not(output_folder.isdir() and output_folder.exists()):
-        exit("output folder doesnt exit or is not a directory")
+    if input_folder.is_dir() is False or input_folder.exists()  is False:
+        exit("input folder doesnt exist or is not a directory")
+    elif not(output_folder.is_dir() or output_folder.exists()):
+        exit("output folder doesnt exist or is not a directory")
     
     # update or create lookup table
     lookup_df = _update_lookup_table(
