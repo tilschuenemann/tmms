@@ -139,7 +139,16 @@ def get_id(api_key: str, strict: bool, title: str, year: str = "") -> int:
 def get_ids(
     api_key: str, strict: bool, item_names: list[str], style: int = -1
 ) -> pd.DataFrame:
+    """Extracts lookup data from item_names using provided style. After that
+    the lookup is performed and the ids get appended as a column.
 
+    :param api_key: TMDB API key
+    :param strict:
+    :param item_names:
+    :param style:
+    :returns: dataframe
+    """
+    
     if len(item_names) == 0:
         return pd.DataFrame()
 
