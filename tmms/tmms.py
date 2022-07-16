@@ -6,7 +6,7 @@ import numpy as np
 import argparse
 import requests  # type: ignore
 import os
-
+import pathlib
 
 def _str_empty(my_string: str) -> bool:
     """Helper to check for empty strings
@@ -54,7 +54,7 @@ def _guess_convention(item_names: list[str]) -> int:
 
 
 def _update_lookup_table(
-    api_key: str, strict: bool, input_folder: str, output_folder: str, style: int = -1
+    api_key: str, strict: bool, input_folder: pathlib.Path, output_folder: pathlib.Path, style: int = -1
 ):
     fresh_items = next(os.walk(input_folder))[1]
 
@@ -91,7 +91,7 @@ def _update_lookup_table(
 
     lookup_df = lookup_df.sort_values(by="item")
 
-    _write_to_disk(lookup_df, f"{output_folder}tmms_lookuptab.csv")
+    _write_to_disk(lookup_df, "tmms_lookuptab.csv", output_folder)
     return lookup_df
 
 
@@ -369,13 +369,18 @@ def get_details(
 
 def _write_to_disk(
     df: pd.DataFrame,
-    output_path: str,
+    fname: str,
+    output_path: pathlib.Path,
 ):
     """Write df to output_path with European settings.
 
     :param df: dataframe to be written
+    :param fname: file name
     :param output_path: path to write df to
     """
+
+    output_path = output_path / fname
+
     df.to_csv(
         output_path,
         sep=";",
@@ -448,7 +453,7 @@ def main():
     lookup_df = _update_lookup_table(
         api_key, strict, input_folder, output_folder, style
     )
-    _write_to_disk(lookup_df, output_folder + "tmms_lookuptab.csv")
+    _write_to_disk(lookup_df,"tmms_lookuptab.csv",  output_folder)
 
     # get ids to lookup
     if m or c:
@@ -468,15 +473,15 @@ def main():
             api_key, unique_ids
         )
 
-        _write_to_disk(details, output_folder + "tmms_moviedetails.csv")
-        _write_to_disk(genres, output_folder + "tmms_genres.csv")
-        _write_to_disk(prod_comp, output_folder + "tmms_production_companies.csv")
-        _write_to_disk(prod_count, output_folder + "tmms_production_countries.csv")
-        _write_to_disk(spoken_langs, output_folder + "tmms_spoken_languages.csv")
+        _write_to_disk(details, "tmms_moviedetails.csv", output_folder)
+        _write_to_disk(genres, "tmms_genres.csv",output_folder)
+        _write_to_disk(prod_comp, "tmms_production_companies.csv",output_folder)
+        _write_to_disk(prod_count, "tmms_production_countries.csv",output_folder)
+        _write_to_disk(spoken_langs, "tmms_spoken_languages.csv",output_folder)
 
     if c:
         cast_crew = get_credits(api_key, unique_ids)
-        _write_to_disk(cast_crew, output_folder + "tmms_credits.csv")
+        _write_to_disk(cast_crew, "tmms_credits.csv", output_folder)
 
 
 if __name__ == "__main__":
