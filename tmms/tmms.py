@@ -56,37 +56,34 @@ def _guess_convention(item_names: list[str]) -> int:
 def _update_lookup_table(
     api_key: str, strict: bool, input_folder: pathlib.Path, output_folder: pathlib.Path, style: int = -1
 ):
+    """ 
+    :param api_key: TMDB API key
+    :param strict:
+    :param input_folder: movie library
+    :param output_folder: where lookuptable gets written to
+    :param style: which style to use for parsing
+    :returns: lookuptable as df
+    """
     fresh_items = next(os.walk(input_folder))[1]
 
     if len(fresh_items) == 0:
         exit("input folder empty")
 
-    lookuptab = f"{output_folder}/tmms_lookuptab.csv"
+    lookuptab = output_folder / "tmms_lookuptab.csv"
 
-    if os.path.exists(lookuptab) is False:
-        lookup_df = get_ids(
-            api_key=api_key, strict=True, item_names=fresh_items, style=style
-        )
+    if lookuptab.exists() is False:
+        lookup_df = get_ids(api_key=api_key, strict=True, item_names=fresh_items, style=style)
         lookup_df["tmdb_id_man"] = 0
     else:
         stale_items = pd.read_csv(lookuptab, sep=";", encoding="UTF-8")
+        # its assumed that the TMDB ids are greater or equal than 0
+        list_with_ids = stale_items[(stale_items["tmdb_id"] >= 0) | (stale_items["tmdb_id_man"] != 0)]
+        list_without_ids = stale_items[(stale_items["tmdb_id"] < 0) & (stale_items["tmdb_id_man"] == 0)]["item"].tolist()
+        list_new_items = list(set(list_without_ids) | (set(fresh_items) - set(list_with_ids["item"])))
 
-        list_with_ids = stale_items[
-            (stale_items["tmdb_id"] >= 0) | (stale_items["tmdb_id_man"] != 0)
-        ]
-
-        list_without_ids = stale_items[
-            (stale_items["tmdb_id"] < 0) & (stale_items["tmdb_id_man"] == 0)
-        ]["item"].tolist()
-
-        list_new_items = list(
-            set(list_without_ids) | (set(fresh_items) - set(list_with_ids["item"]))
-        )
-
-        renewed = get_ids(api_key, strict, list_new_items, style=style)
+        renewed = get_ids(api_key=api_key, strict=strict, item_names=list_new_items, style=style)
         renewed["tmdb_id_man"] = 0
         lookup_df = pd.concat([list_with_ids, renewed], axis=0)
-
         lookup_df = lookup_df.reset_index(drop=True)
 
     lookup_df = lookup_df.sort_values(by="item")
