@@ -1,0 +1,23 @@
+name: Build
+on: push
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Poetry
+        run: pipx install poetry
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+          cache: poetry
+      - run: |
+          poetry env use python3.10
+          poetry install
+      - name: Test with PyTest
+        run: |
+          export TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}
+          export POETRY_TMDB_API_KEY=${{ secrets.POETRY_TMDB_API_KEY }}
+          poetry run pytest
