@@ -131,11 +131,43 @@ def get_id(api_key: str, strict: bool, title: str, year: str = "") -> int:
             return NO_RESULT
 
 
-def get_ids(
-    api_key: str, strict: bool, item_names: list[str], style: int = -1
-) -> pd.DataFrame:
-    """Extracts lookup data from item_names using provided style. After that
-    the lookup is performed and the ids get appended as a column.
+def _extract(item_names: list[str], style: int= -1):
+    """Extracts lookup data from item_names using provided style. 
+    If title, year or subtitles do not conform, "" will be inserted into the df.
+
+
+    :param item_names:
+    :param style: parsing style 
+    :returns: df
+
+    """
+    # guess convention if not supplied
+    if style == -1:
+        style = _guess_convention(item_names)
+
+    # extract from item_names to df
+    df = pd.DataFrame(item_names, columns=["item"])
+
+    if style == -1:
+        exit("no style could be guessed, please supply style yourself")
+    elif style == 0:
+        extract = df["item"].str.extract(r"(?P<title>^.*) \((?P<year>\d{4})\) \((?P<subtitles>.*)\)$")
+    elif style == 1:
+        extract = df["item"].str.extract(r"^(?P<year>\d{4}) - (?P<title>.*)$")
+    elif style == 2:
+        extract = df["item"].str.extract(r"^(?P<title>.*)$")
+        extract["year"] = ""
+
+    extract = extract.fillna("")
+    extract = extract.replace(r"^\s*$", "", regex=True)
+
+    df = pd.concat([df, extract], axis=1)
+    df.reset_index()
+
+    return df
+
+def get_ids(api_key: str, strict: bool, item_names: list[str], style: int = -1) -> pd.DataFrame:
+    """Creates a df with item_names as column and a tmdb_id column.
 
     :param api_key: TMDB API key
     :param strict:
@@ -143,46 +175,20 @@ def get_ids(
     :param style:
     :returns: dataframe
     """
+
+    df = _extract(item_names = item_names, style=style)
     
-    if len(item_names) == 0:
-        return pd.DataFrame()
-
-    if style == -1:
-        style = _guess_convention(item_names)
-
-    df = pd.DataFrame(item_names, columns=["item"])
-
-    if style == -1:
-        exit("no style could be guessed, please supply style yourself")
-    elif style == 0:
-        extract = df["item"].str.extract(
-            r"(?P<title>^.*) \((?P<year>\d{4})\) \((?P<subtitles>.*)\)$"
-        )
-    elif style == 1:
-        extract = df["item"].str.extract(r"^(?P<year>\d{4}) - (?P<title>.*)$")
-    elif style == 2:
-        extract = df["item"].str.extract(r"^(?P<title>.*)$")
-
-    extract = extract.fillna(-1)
-    extract = extract.replace(r"^\s*$", -1, regex=True)
-
-    df = pd.concat([df, extract], axis=1)
-    df.reset_index()
-
+    # get list tmdb ids
     tmdb_ids = []
     for index, row in tqdm(df.iterrows(), desc="IDs    ", total=len(df["item"])):
         title = row["title"]
-
-        if style == 0 or style == 1:
-            year = str(row["year"])
-        else:
-            year = ""
-
+        year = row["year"]
+        
         new_id = get_id(api_key=api_key, strict=strict, title=title, year=year)
         tmdb_ids.append(new_id)
 
+    # append ids and remove extracted columns
     df["tmdb_id"] = tmdb_ids
-
     df.drop(["title", "year", "subtitles"], axis=1, inplace=True, errors="ignore")
 
     return df
