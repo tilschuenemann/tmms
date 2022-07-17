@@ -18,4 +18,6 @@ jobs:
           poetry install
       - name: Test with PyTest
         run: |
+          export POETRY_TMDB_API_KEY=${{ env_test.POETRY_TMDB_API_KEY }}
+          export TMDB_API_KEY=${{ env_test.TMDB_API_KEY }}
           poetry run pytest tests
