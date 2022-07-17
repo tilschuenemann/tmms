@@ -20,4 +20,6 @@ jobs:
         run: |
           export TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}
           export POETRY_TMDB_API_KEY=${{ secrets.POETRY_TMDB_API_KEY }}
+          echo $TMDB_API_KEY
+          echo $POETRY_TMDB_API_KEY
           poetry run pytest tests
