@@ -21,6 +21,15 @@ def _str_empty(my_string: str) -> bool:
         return True
 
 
+def _get_api_key():
+    """Helper for accesssing the API key across all functions.
+    """
+    try:
+        return os.getenv("TMDB_API_KEY")
+    except Exception:
+        exit("TMDB_API_KEY environment variable not set!")
+
+
 def _guess_convention(item_names: list[str]) -> int:
     """Takes a list of item names and checks,
     if they fit one of the defined styles.
@@ -51,9 +60,8 @@ def _guess_convention(item_names: list[str]) -> int:
     return -1
 
 
-def _update_lookup_table(api_key: str, strict: bool, input_folder: pathlib.Path, output_folder: pathlib.Path, style: int = -1):
+def _update_lookup_table(input_folder: pathlib.Path, output_folder: pathlib.Path, style: int = -1, strict: bool = True):
     """
-    :param api_key: TMDB API key
     :param strict:
     :param input_folder: movie library
     :param output_folder: where lookuptable gets written to
@@ -68,8 +76,7 @@ def _update_lookup_table(api_key: str, strict: bool, input_folder: pathlib.Path,
     lookuptab = output_folder / "tmms_lookuptab.csv"
 
     if lookuptab.exists() is False:
-        lookup_df = get_ids(api_key=api_key, strict=True,
-                            item_names=fresh_items, style=style)
+        lookup_df = get_ids(item_names=fresh_items, style=style, strict=strict)
         lookup_df["tmdb_id_man"] = 0
     else:
         stale_items = pd.read_csv(lookuptab, sep=";", encoding="UTF-8")
@@ -81,8 +88,8 @@ def _update_lookup_table(api_key: str, strict: bool, input_folder: pathlib.Path,
         list_new_items = list(set(list_without_ids) | (
             set(fresh_items) - set(list_with_ids["item"])))
 
-        renewed = get_ids(api_key=api_key, strict=strict,
-                          item_names=list_new_items, style=style)
+        renewed = get_ids(item_names=list_new_items,
+                          style=style, strict=strict)
         renewed["tmdb_id_man"] = 0
         lookup_df = pd.concat([list_with_ids, renewed], axis=0)
         lookup_df = lookup_df.reset_index(drop=True)
@@ -93,14 +100,13 @@ def _update_lookup_table(api_key: str, strict: bool, input_folder: pathlib.Path,
     return lookup_df
 
 
-def get_id(api_key: str, strict: bool, title: str, year: str = "") -> int:
+def get_id(title: str, year: str = "", strict: bool = True) -> int:
     """Creates a search get request for TMDB API.
 
     Searches the TMDB for movies matching the title and release year. If there are no results,
     the release year will be omitted. strict can be set so only the initial call gets made.
     If there are multiple results, the most popular one is kept. Incase of no result, -1 is returned.
 
-    :param api_key: TMDB API key
     :param strict: if strict==False, another lookup without the year will be performed
     :param title: movie title
     :param year: movie release year
@@ -109,8 +115,7 @@ def get_id(api_key: str, strict: bool, title: str, year: str = "") -> int:
 
     NO_RESULT = -1
 
-    if _str_empty(api_key) or _str_empty(title):
-        return NO_RESULT
+    api_key = _get_api_key
 
     if _str_empty(year) is False:
         url = (
@@ -119,20 +124,20 @@ def get_id(api_key: str, strict: bool, title: str, year: str = "") -> int:
         response = requests.get(url).json()
 
         try:
-            mid = int(response["results"][0]["id"])
-            return mid
+            tmdb_id = int(response["results"][0]["id"])
+            return tmdb_id
         except IndexError:
             if strict:
                 return NO_RESULT
             else:
-                return get_id(api_key=api_key, strict=strict, title=title)
+                return get_id(title=title, strict=strict)
     else:
         url = f"https://api.themoviedb.org/3/search/movie/?api_key={api_key}&query={title}&include_adult=true"
         response = requests.get(url).json()
 
         try:
-            mid = int(response["results"][0]["id"])
-            return mid
+            tmdb_id = int(response["results"][0]["id"])
+            return tmdb_id
         except IndexError:
             return NO_RESULT
 
@@ -174,10 +179,9 @@ def _extract(item_names: list[str], style: int = -1):
     return df
 
 
-def get_ids(api_key: str, strict: bool, item_names: list[str], style: int = -1) -> pd.DataFrame:
+def get_ids(item_names: list[str], style: int = -1, strict: bool = True) -> pd.DataFrame:
     """Creates a df with item_names as column and a tmdb_id column.
 
-    :param api_key: TMDB API key
     :param strict:
     :param item_names:
     :param style:
@@ -192,8 +196,8 @@ def get_ids(api_key: str, strict: bool, item_names: list[str], style: int = -1) 
         title = row["title"]
         year = row["year"]
 
-        new_id = get_id(api_key=api_key, strict=strict, title=title, year=year)
-        tmdb_ids.append(new_id)
+        tmdb_id = get_id(title=title, year=year, strict=strict)
+        tmdb_ids.append(tmdb_id)
 
     # append ids and remove extracted columns
     df["tmdb_id"] = tmdb_ids
@@ -203,18 +207,18 @@ def get_ids(api_key: str, strict: bool, item_names: list[str], style: int = -1) 
     return df
 
 
-def get_credits(api_key: str, id_list: list[int], language: str = "en-US") -> pd.DataFrame:
+def get_credits(id_list: list[int], language: str = "en-US") -> pd.DataFrame:
     """
 
-    :param api_key: TMDB API key
     :param id_list: list of TMDB ids
     :returns: credits as dataframe
     """
+    api_key = _get_api_key()
     cast_crew = pd.DataFrame()
 
-    for mid in tqdm(id_list, "Credits"):
+    for tmdb_id in tqdm(id_list, "Credits"):
 
-        url = f"https://api.themoviedb.org/3/movie/{mid}/credits?api_key={api_key}&language={language}"
+        url = f"https://api.themoviedb.org/3/movie/{tmdb_id}/credits?api_key={api_key}&language={language}"
         response = requests.get(url).json()
 
         response["m.id"] = response.pop("id")
@@ -269,14 +273,14 @@ def get_credits(api_key: str, id_list: list[int], language: str = "en-US") -> pd
     return cast_crew
 
 
-def get_details(api_key: str, id_list: list[int], language: str = "en-US") -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def get_details(id_list: list[int], language: str = "en-US") -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
 
-    :param api_key: TMDB API key
     :param id_list: list of TMDB ids
     :returns: dfs movie_details, genres, production companies, production countr
     ies, spoken languages
     """
+    api_key = _get_api_key()
     details = pd.DataFrame()
     genres = pd.DataFrame()
     prod_comp = pd.DataFrame()
@@ -290,9 +294,9 @@ def get_details(api_key: str, id_list: list[int], language: str = "en-US") -> tu
         "spoken_languages",
     ]
 
-    for mid in tqdm(id_list, "Details"):
+    for tmdb_id in tqdm(id_list, "Details"):
 
-        url = f"https://api.themoviedb.org/3/movie/{mid}?api_key={api_key}&include_adult=true&language={language}"
+        url = f"https://api.themoviedb.org/3/movie/{tmdb_id}?api_key={api_key}&include_adult=true&language={language}"
         response = requests.get(url).json()
 
         tmp = pd.json_normalize(
@@ -317,7 +321,7 @@ def get_details(api_key: str, id_list: list[int], language: str = "en-US") -> tu
 
         for col in to_unlist:
             tmp = pd.json_normalize(response, record_path=col)
-            tmp["m.id"] = mid
+            tmp["m.id"] = tmdb_id
 
             if col == "genres":
                 genres = pd.concat([genres, tmp], axis=0)
@@ -402,8 +406,6 @@ def main(argv=None):
 
     parser.add_argument("input_folder", type=str)
     parser.add_argument("--output_folder", type=str, required=False,)
-    parser.add_argument("--api_key", type=str,
-                        required=False, help="TMDB API key")
     parser.add_argument("--m", action="store_true",
                         help="set flag for pulling movie detail data")
     parser.add_argument("--c", action="store_true",
@@ -416,7 +418,6 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     input_folder = pathlib.Path(args.input_folder)
-    api_key = args.api_key
     m = args.m
     c = args.c
     strict = args.s
@@ -430,11 +431,6 @@ def main(argv=None):
         output_folder = pathlib.Path(args.output_folder)
 
     # check inputs
-    if _str_empty(api_key):
-        try:
-            api_key = os.getenv("TMDB_API_KEY")
-        except Exception:
-            exit("no api key supplied")
     if input_folder.is_dir() is False or input_folder.exists() is False:
         exit("input folder doesnt exist or is not a directory")
     elif not(output_folder.is_dir() or output_folder.exists()):
@@ -442,7 +438,7 @@ def main(argv=None):
 
     # update or create lookup table
     lookup_df = _update_lookup_table(
-        api_key, strict, input_folder, output_folder, style
+        strict, input_folder, output_folder, style
     )
     _write_to_disk(lookup_df, "tmms_lookuptab.csv",  output_folder)
 
@@ -461,7 +457,7 @@ def main(argv=None):
 
     if m:
         details, genres, prod_comp, prod_count, spoken_langs = get_details(
-            api_key, unique_ids
+            unique_ids
         )
 
         _write_to_disk(details, "tmms_moviedetails.csv", output_folder)
@@ -474,7 +470,7 @@ def main(argv=None):
             spoken_langs, "tmms_spoken_languages.csv", output_folder)
 
     if c:
-        cast_crew = get_credits(api_key, unique_ids)
+        cast_crew = get_credits(unique_ids)
         _write_to_disk(cast_crew, "tmms_credits.csv", output_folder)
 
 
